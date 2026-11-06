@@ -1,0 +1,41 @@
+name: CI
+
+# Every job calls a make target, so a CI failure can be reproduced locally
+# with the same command. Later phases add terraform, ansible, observability,
+# compose and Go jobs.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+# A newer push to the same branch or PR cancels the run in progress.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# Actions are pinned to a full commit SHA, not a tag: a tag can be moved to
+# malicious code, a SHA cannot. The comment says which release it is;
+# Dependabot updates both.
+
+jobs:
+  lint:
+    name: Lint (pre-commit)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # yamllint, shellcheck, actionlint, hadolint and the file hygiene
+      # hooks, inside the same toolbox image as on a developer machine.
+      - run: make lint
+
+  secrets:
+    name: Secrets (gitleaks)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # gitleaks scans the whole history
+      - run: make secrets

@@ -1,0 +1,18 @@
+---
+# ansible-lint settings. The production profile is the strictest one:
+# FQCN module names, no `shell` where a module exists, named tasks,
+# handlers instead of restarts in tasks, no secrets in logs.
+profile: production
+
+# Only Ansible content is linted: other YAML in the repository (Compose,
+# Prometheus, Grafana, GitHub Actions) is checked by yamllint.
+exclude_paths:
+  - .cache/
+  - .github/
+  - observability/
+  - terraform/
+  - toolbox/
+  - .pre-commit-config.yaml
+
+# Fail on warnings too: a warning nobody fixes is noise.
+strict: true

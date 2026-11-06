@@ -1,0 +1,53 @@
+# --- Terraform -------------------------------------------------------------
+# State holds every resource attribute, including secrets: never commit it.
+*.tfstate
+*.tfstate.*
+*.tfplan
+tfplan
+crash.log
+crash.*.log
+.terraform/
+# Variable values may contain secrets; only *.tfvars.example is committed.
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+# .terraform.lock.hcl IS committed (pinned provider checksums).
+
+# --- Ansible ---------------------------------------------------------------
+# The vault password never lives in the repository (docs/operations.md).
+.vault-pass
+.vault-pass*
+*.vault-pass
+vault-password*
+# Generated from `terraform output` by scripts/gen-inventory.sh.
+ansible/inventories/prod/hosts.yml
+*.retry
+.ansible/
+
+# --- Secrets and local environment -----------------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+id_rsa*
+id_ed25519*
+
+# --- Vagrant -----------------------------------------------------------------
+.vagrant/
+
+# --- Go (tools/restore-verifier) ---------------------------------------------
+bin/
+coverage*.out
+coverage*.html
+
+# --- Editors and OS ----------------------------------------------------------
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db

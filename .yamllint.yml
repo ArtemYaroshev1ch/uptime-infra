@@ -1,0 +1,29 @@
+# yamllint settings for every YAML file of the repository (Ansible,
+# Compose, Prometheus, GitHub Actions). The rule overrides below are the
+# ones ansible-lint requires, so both linters agree on the same files.
+extends: default
+
+ignore: |
+  .cache/
+  .ansible/
+  .terraform/
+
+rules:
+  # GitHub Actions uses the bare key "on:", which YAML 1.1 reads as a
+  # boolean; allow it as a key, but keep values strict.
+  truthy:
+    allowed-values: ["true", "false"]
+    check-keys: false
+  document-start: disable
+  line-length:
+    max: 120
+    level: warning
+  # Required by ansible-lint.
+  comments:
+    min-spaces-from-content: 1
+  comments-indentation: false
+  braces:
+    max-spaces-inside: 1
+  octal-values:
+    forbid-implicit-octal: true
+    forbid-explicit-octal: true
