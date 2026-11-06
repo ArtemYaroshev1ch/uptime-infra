@@ -91,8 +91,12 @@ The production app version is the single variable `app_version` in
 ## Make targets
 
 `make help` for the current list. Now: `help`, `toolbox`, `shell`, `lint`
-(`pre-commit run --all-files` in the toolbox), `test` (placeholder until
-Phase 4), `secrets` (gitleaks over the history). `make lint test` is the
+(`pre-commit run --all-files` in the toolbox, includes `ansible-lint`
+production profile), `test` (= `test-ansible`: Molecule idempotence test,
+ADR-0004), `secrets` (gitleaks over the history), and the local VM:
+`local-up`, `local-bootstrap`, `local-site`, `local-check`,
+`local-idempotence`, `local-verify`, `local-ssh`, `local-halt`,
+`local-destroy` (never without an explicit request). `make lint test` is the
 phase gate.
 
 ## Environment
@@ -105,6 +109,11 @@ phase gate.
   `core.autocrlf=true` system-wide, so `.gitattributes` forces LF.
 - GNU Make (ezwinports) runs recipes through Git's `sh`; the Makefile adds
   Git's `/usr/bin` to PATH and sets `MSYS_NO_PATHCONV=1` on Windows.
+- Local VM: `bento/ubuntu-26.04` at `192.168.56.10` (host-only). Docker
+  Desktop containers **cannot** reach the host-only network, so Ansible in
+  the toolbox connects via Vagrant's forward `host.docker.internal:2222`;
+  the browser on Windows uses `192.168.56.10`. ssh keys: `local/.ssh/`
+  (gitignored), copied with mode 0600 by `scripts/with-local-keys.sh`.
 - Go 1.27 is installed (for `tools/restore-verifier` in Phase 7).
 - Bash heredocs with unbalanced apostrophes fail in the assistant's shell:
   write files with the editor tools. No `sed` on markdown tables with `|`.
