@@ -1,0 +1,4 @@
+# Python tools of the toolbox image, pinned exactly (Dependabot: pip).
+# The linters themselves (yamllint, shellcheck, actionlint) are pinned in
+# .pre-commit-config.yaml; pre-commit installs them into its own cache.
+pre-commit==4.7.0
