@@ -1,0 +1,31 @@
+# Docker Engine and Compose from Docker's own apt repository, pinned to
+# exact package versions: an engine upgrade restarts every container, so
+# it happens in a reviewed change, not on its own. Look up versions with
+#   apt-cache madison docker-ce docker-compose-plugin
+docker_version: "5:29.9.3-1~ubuntu.26.04~resolute"
+docker_containerd_version: "2.4.2-3~ubuntu.26.04~resolute"
+docker_compose_version: "5.7.0-1~ubuntu.26.04~resolute"
+docker_buildx_version: "0.38.1-1~ubuntu.26.04~resolute"
+
+docker_repo_url: https://download.docker.com/linux/ubuntu
+# SHA-256 of Docker's release signing key: a changed key fails the run
+# instead of being trusted silently.
+docker_gpg_key_checksum: sha256:1500c1f56fa9e26b9b8f42452a553675796ade0807cdce11975eb98170b3a570
+
+# Ubuntu's own builds conflict with Docker's packages.
+docker_conflicting_packages:
+  - docker.io
+  - docker-doc
+  - docker-compose
+  - docker-compose-v2
+  - podman-docker
+  - containerd
+  - runc
+
+# Log rotation for the json-file driver: at most 3 x 10 MB per container.
+docker_log_max_size: 10m
+docker_log_max_file: 3
+
+# Containers keep running while dockerd restarts (engine upgrades,
+# daemon.json changes).
+docker_live_restore: true
