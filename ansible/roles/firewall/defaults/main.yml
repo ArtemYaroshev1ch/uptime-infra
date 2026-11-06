@@ -1,0 +1,16 @@
+# Where ssh is allowed from. "any" by default: GitHub Actions runners come
+# from unpredictable addresses (docs/operations.md); keys + fail2ban + the
+# rate limit below protect the port. Set a list of CIDRs to narrow it.
+firewall_ssh_sources:
+  - any
+
+# Public ports besides ssh: only Caddy's HTTP and HTTPS.
+firewall_public_tcp_ports:
+  - 80
+  - 443
+
+# Log blocked packets at the "low" level (rate-limited by ufw).
+firewall_logging: low
+
+# Must match ssh_hardening_port.
+firewall_ssh_port: 22
