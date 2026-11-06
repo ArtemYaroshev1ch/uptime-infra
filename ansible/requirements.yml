@@ -1,0 +1,9 @@
+# Ansible collections, pinned exactly. Installed into the toolbox image
+# (toolbox/Dockerfile); rebuild it with `make toolbox` after a change.
+collections:
+  - name: ansible.posix
+    version: 2.2.2
+  - name: community.general
+    version: 14.0.0
+  - name: community.docker
+    version: 5.4.0

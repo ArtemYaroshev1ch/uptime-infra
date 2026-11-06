@@ -1,0 +1,37 @@
+# Variables of the local environment (Vagrant VM, docs/adr/0003).
+
+env_name: local
+
+# --- Connection ------------------------------------------------------------
+# scripts/with-local-keys.sh copies the keys from local/.ssh and .vagrant
+# into this directory inside the toolbox container with mode 0600 (keys on
+# a Windows bind mount look world-readable and ssh refuses them).
+local_key_dir: /root/.ssh/uptime-local
+
+ansible_user: deploy
+ansible_ssh_private_key_file: "{{ local_key_dir }}/deploy"
+# The VM gets new host keys every time it is recreated and the toolbox
+# container is thrown away after each run, so there is nothing to pin
+# against locally. Production pins host keys (KNOWN_HOSTS).
+ansible_ssh_common_args: -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR
+
+# bootstrap.yml logs in as the box's own user with the key Vagrant made.
+bootstrap_user: vagrant
+bootstrap_private_key_file: "{{ local_key_dir }}/vagrant"
+
+# --- deploy user -----------------------------------------------------------
+deploy_ssh_public_key: "{{ lookup('ansible.builtin.file', local_key_dir + '/deploy.pub') }}"
+
+# --- ssh_hardening -----------------------------------------------------------
+# `vagrant ssh`, `vagrant halt` and `vagrant up` log in as vagrant.
+ssh_hardening_allowed_users:
+  - deploy
+  - vagrant
+
+# --- fail2ban ----------------------------------------------------------------
+# The workstation, as the VM sees it: through Vagrant's port forward
+# (VirtualBox NAT gateway) and over the host-only network.
+# `make local-verify` fails logins on purpose and must not ban the operator.
+fail2ban_ignoreip:
+  - 10.0.2.2
+  - 192.168.56.1

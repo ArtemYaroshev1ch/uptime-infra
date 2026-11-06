@@ -1,0 +1,5 @@
+# The toolbox image is built with the repository root as context
+# (Makefile: make toolbox). Send only what the Dockerfile copies.
+*
+!toolbox/requirements.txt
+!ansible/requirements.yml

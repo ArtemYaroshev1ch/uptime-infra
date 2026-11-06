@@ -1,0 +1,11 @@
+galaxy_info:
+  role_name: docker
+  author: ArtemYaroshev1ch
+  description: Docker Engine and Compose from Docker's repository, pinned, with log rotation and live-restore
+  license: MIT
+  min_ansible_version: "2.20"
+  platforms:
+    - name: Ubuntu
+      versions:
+        - resolute
+dependencies: []

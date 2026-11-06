@@ -1,0 +1,75 @@
+- name: Remove packages that conflict with Docker's
+  ansible.builtin.apt:
+    name: "{{ docker_conflicting_packages }}"
+    state: absent
+
+- name: Create the apt keyring directory
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Download Docker's signing key
+  ansible.builtin.get_url:
+    url: "{{ docker_repo_url }}/gpg"
+    dest: /etc/apt/keyrings/docker.asc
+    checksum: "{{ docker_gpg_key_checksum }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+# deb822_repository needs python3-debian on the host.
+- name: Install the repository prerequisites
+  ansible.builtin.apt:
+    name: python3-debian
+    state: present
+
+# signed_by: packages from this repository are trusted only with Docker's
+# key, and Docker's key is trusted for nothing else.
+- name: Add Docker's apt repository
+  # In --check mode on a fresh host python3-debian is not really installed.
+  ignore_errors: "{{ ansible_check_mode }}"
+  ansible.builtin.deb822_repository:
+    name: docker
+    types: deb
+    uris: "{{ docker_repo_url }}"
+    suites: "{{ ansible_facts['distribution_release'] }}"
+    components: stable
+    architectures: "{{ 'arm64' if ansible_facts['architecture'] == 'aarch64' else 'amd64' }}"
+    signed_by: /etc/apt/keyrings/docker.asc
+  register: docker_repo
+
+# The cache is refreshed only when the repository was just added: common
+# refreshed it at the start of the run, but without Docker's packages.
+- name: Install Docker Engine and Compose
+  ansible.builtin.apt:
+    update_cache: "{{ docker_repo is changed }}"
+    name:
+      - "docker-ce={{ docker_version }}"
+      - "docker-ce-cli={{ docker_version }}"
+      - "containerd.io={{ docker_containerd_version }}"
+      - "docker-compose-plugin={{ docker_compose_version }}"
+      - "docker-buildx-plugin={{ docker_buildx_version }}"
+    state: present
+    allow_downgrade: true
+  notify: Restart docker
+
+- name: Configure the Docker daemon
+  ansible.builtin.template:
+    src: daemon.json.j2
+    dest: /etc/docker/daemon.json
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart docker
+
+- name: Enable Docker
+  ansible.builtin.systemd_service:
+    name: docker
+    enabled: true
+    state: started
+  # In --check mode on a fresh host the package is not really installed,
+  # so the service does not exist yet.
+  ignore_errors: "{{ ansible_check_mode }}"

@@ -1,0 +1,34 @@
+# {{ ansible_managed }}
+# Read before every other file of sshd_config.d: for most options the first
+# value wins.
+
+Port {{ ssh_hardening_port }}
+
+# Keys only, no root.
+PermitRootLogin no
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PermitEmptyPasswords no
+PubkeyAuthentication yes
+AuthenticationMethods publickey
+AllowUsers {{ ssh_hardening_allowed_users | join(' ') }}
+
+MaxAuthTries {{ ssh_hardening_max_auth_tries }}
+LoginGraceTime {{ ssh_hardening_login_grace_time }}
+ClientAliveInterval {{ ssh_hardening_client_alive_interval }}
+ClientAliveCountMax {{ ssh_hardening_client_alive_count_max }}
+
+AllowTcpForwarding {{ ssh_hardening_allow_tcp_forwarding }}
+AllowAgentForwarding no
+AllowStreamLocalForwarding no
+PermitTunnel no
+GatewayPorts no
+X11Forwarding no
+PermitUserEnvironment no
+
+KexAlgorithms {{ ssh_hardening_kex_algorithms | join(',') }}
+Ciphers {{ ssh_hardening_ciphers | join(',') }}
+MACs {{ ssh_hardening_macs | join(',') }}
+HostKeyAlgorithms {{ ssh_hardening_host_key_algorithms | join(',') }}
+
+LogLevel VERBOSE

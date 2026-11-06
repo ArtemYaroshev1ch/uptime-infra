@@ -1,0 +1,6 @@
+// {{ ansible_managed }}
+// A stalled mirror connection (seen behind VirtualBox NAT) fails after the
+// timeout instead of hanging apt forever, and every download is retried.
+Acquire::Retries "{{ common_apt_retries }}";
+Acquire::http::Timeout "{{ common_apt_timeout }}";
+Acquire::https::Timeout "{{ common_apt_timeout }}";

@@ -1,0 +1,20 @@
+# Full configuration of a host. Safe to run any number of times: a second
+# run reports changed=0 (checked by `make local-idempotence` and by Molecule
+# in CI). Later phases add the stack, deploy and backup roles.
+#
+#   make local-site             # local VM
+#   make local-check            # the same with --check --diff
+- name: Configure the host
+  hosts: all
+  become: true
+  roles:
+    - role: common
+      tags: [common]
+    - role: ssh_hardening
+      tags: [ssh]
+    - role: firewall
+      tags: [firewall]
+    - role: fail2ban
+      tags: [fail2ban]
+    - role: docker
+      tags: [docker]

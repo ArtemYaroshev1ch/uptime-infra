@@ -9,7 +9,7 @@ a host with Terraform, configure it with Ansible, run the application and a
 Prometheus/Grafana/Loki stack in Docker Compose, alert on SLO burn rate,
 deploy blue/green with automatic rollback, and back up and verify restores.
 
-> **Status: work in progress.** Phase 0 (repository skeleton). The project
+> **Status: work in progress.** Phase 1 (local VM and base host configuration). The project
 > runs on a local Vagrant VM; Terraform is kept in validate-only mode
 > ([ADR-0003](docs/adr/0003-local-only-environment.md)).
 
@@ -30,20 +30,32 @@ deploy blue/green with automatic rollback, and back up and verify restores.
 | `docs/` | Architecture, operations, disaster recovery, ADRs |
 | [`SLO.md`](SLO.md) | Service level objectives and the error budget policy |
 
+## Quick start (local)
+
+```sh
+make local-up       # create the Ubuntu 26.04 VM, bootstrap it, apply site.yml
+make local-verify   # no password or root login over ssh, ufw active, Docker runs
+```
+
+The VM is reachable at `192.168.56.10`. What runs on it so far: base
+hardening (`common`, `ssh_hardening`, `firewall`, `fail2ban`) and Docker;
+see [`ansible/README.md`](ansible/README.md).
+
 ## Requirements
 
 - Docker (Docker Desktop on Windows/macOS), GNU Make, Git.
-- Phase 1 onwards: VirtualBox and Vagrant for the local environment.
+- VirtualBox 7.x and Vagrant 2.4+ for the local environment.
 
-Nothing else is installed on the host: Python, pre-commit, the linters and,
-later, Ansible and Terraform run inside the toolbox container
+Nothing else is installed on the host: Python, pre-commit, the linters,
+Ansible and Molecule (later Terraform) run inside the toolbox container
 ([ADR-0002](docs/adr/0002-toolbox-container.md)).
 
 ## Development
 
 ```sh
 make help      # list of targets
-make lint      # every pre-commit hook on all files, inside the toolbox
+make lint      # every pre-commit hook on all files (incl. ansible-lint), inside the toolbox
+make test      # Molecule: site.yml twice in a container, the second run must report changed=0
 make secrets   # gitleaks over the whole git history
 make shell     # a shell in the toolbox, e.g. for `pre-commit autoupdate`
 ```

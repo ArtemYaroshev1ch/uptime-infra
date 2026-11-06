@@ -48,3 +48,19 @@ repos:
     rev: v2.15.1
     hooks:
       - id: hadolint
+        # Molecule's Dockerfile is a Jinja template with a .j2 suffix.
+        files: (^|/)Dockerfile(\.j2)?$
+        types: [file]
+
+  # ansible-lint comes from the toolbox image (toolbox/requirements.txt),
+  # together with the pinned collections it resolves modules against. It
+  # lints the whole project (production profile, .ansible-lint), including
+  # a syntax check of every playbook.
+  - repo: local
+    hooks:
+      - id: ansible-lint
+        name: ansible-lint
+        entry: ansible-lint
+        language: system
+        pass_filenames: false
+        files: ^ansible/

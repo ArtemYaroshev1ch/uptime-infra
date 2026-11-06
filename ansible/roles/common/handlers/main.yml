@@ -1,0 +1,5 @@
+# Loads every file of /etc/sysctl.d in order, as at boot.
+- name: Apply kernel parameters
+  ansible.builtin.command: sysctl --system
+  changed_when: true
+  when: common_sysctl_apply

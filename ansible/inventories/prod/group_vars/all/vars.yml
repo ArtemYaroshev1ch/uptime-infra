@@ -1,0 +1,19 @@
+# Variables of the production environment. hosts.yml next to this file is
+# generated from `terraform output` (scripts/gen-inventory.sh, Phase 5) and
+# is not committed. Production is not deployed in this project
+# (docs/adr/0003-local-only-environment.md), but the inventory is kept
+# complete so the roles are written for both environments.
+
+env_name: prod
+
+ansible_user: deploy
+
+# The cloud image allows only root with the key Terraform installed.
+bootstrap_user: root
+
+# Public key of the deploy user (the private half lives in the operator's
+# ssh agent and in the GitHub secret SSH_PRIVATE_KEY).
+deploy_ssh_public_key: "{{ lookup('ansible.builtin.file', '~/.ssh/uptime_deploy.pub') }}"
+
+ssh_hardening_allowed_users:
+  - deploy
