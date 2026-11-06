@@ -1,8 +1,8 @@
 name: CI
 
 # Every job calls a make target, so a CI failure can be reproduced locally
-# with the same command. Later phases add terraform, ansible, observability,
-# compose and Go jobs.
+# with the same command. Later phases add terraform, observability, compose
+# and Go jobs. ansible-lint runs in the lint job (pre-commit).
 
 on:
   push:
@@ -30,6 +30,15 @@ jobs:
       # yamllint, shellcheck, actionlint, hadolint and the file hygiene
       # hooks, inside the same toolbox image as on a developer machine.
       - run: make lint
+
+  ansible:
+    name: Ansible (Molecule idempotence)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # site.yml twice in a systemd container: the second run must report
+      # changed=0 (docs/adr/0004-ansible-idempotence-in-ci.md).
+      - run: make test-ansible
 
   secrets:
     name: Secrets (gitleaks)
