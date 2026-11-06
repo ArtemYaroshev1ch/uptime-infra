@@ -1,0 +1,28 @@
+# python3-systemd: the jail reads sshd's log from the journal (Ubuntu
+# servers have no /var/log/auth.log without rsyslog).
+- name: Install fail2ban
+  ansible.builtin.apt:
+    name:
+      - fail2ban
+      - python3-systemd
+    state: present
+
+# jail.local-style overrides in jail.d; the packaged jail.conf stays
+# untouched, so package upgrades never conflict with it.
+- name: Configure the sshd jail
+  ansible.builtin.template:
+    src: sshd.local.j2
+    dest: /etc/fail2ban/jail.d/sshd.local
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart fail2ban
+
+- name: Enable fail2ban
+  ansible.builtin.systemd_service:
+    name: fail2ban
+    enabled: true
+    state: started
+  # In --check mode on a fresh host the package is not really installed,
+  # so the service does not exist yet.
+  ignore_errors: "{{ ansible_check_mode }}"
