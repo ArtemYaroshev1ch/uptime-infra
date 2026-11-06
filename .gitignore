@@ -39,6 +39,8 @@ id_ed25519*
 
 # --- Vagrant -----------------------------------------------------------------
 .vagrant/
+# ssh key pair of the deploy user on the local VM (scripts/with-local-keys.sh).
+local/.ssh/
 
 # --- Go (tools/restore-verifier) ---------------------------------------------
 bin/

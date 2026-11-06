@@ -1,0 +1,46 @@
+# -*- mode: ruby -*-
+# The local environment (docs/adr/0003-local-only-environment.md): one
+# Ubuntu LTS VM that the same Ansible roles configure as a server.
+# Vagrant only creates the VM; Ansible runs from the toolbox container
+# (make local-up), exactly as it would against a cloud host.
+
+Vagrant.require_version ">= 2.4.0"
+
+# The host-only address the toolbox (Ansible) and the browser reach the VM
+# on. Must match ansible/inventories/local/hosts.yml.
+VM_IP = "192.168.56.10"
+
+Vagrant.configure("2") do |config|
+  # Pinned box version: a new box is a reviewed change, like any image tag.
+  config.vm.box = "bento/ubuntu-26.04"
+  config.vm.box_version = "202606.01.0"
+  config.vm.box_check_update = false
+
+  config.vm.hostname = "uptime-local"
+  # The browser on the workstation reaches the VM here (Phase 2 on).
+  config.vm.network "private_network", ip: VM_IP
+  # Ansible in the toolbox container connects through this forward
+  # (host.docker.internal:2222): Docker Desktop containers cannot reach the
+  # host-only network. Fixed port, no auto-correction, so the inventory
+  # can rely on it.
+  config.vm.network "forwarded_port", id: "ssh", guest: 22, host: 2222,
+                    host_ip: "127.0.0.1", auto_correct: false
+
+  # Nothing is shared with the host: the VM gets its configuration from
+  # Ansible only, like a real server.
+  config.vm.synced_folder ".", "/vagrant", disabled: true
+
+  config.vm.provider "virtualbox" do |vb|
+    vb.name = "uptime-local"
+    # 2 GB: the workstation has 7.4 GB in total, and with Docker Desktop's
+    # WSL2 VM next to it a 4 GB guest starved the host and stalled
+    # (local/README.md, "Known issues"). The full stack of Phase 3 needs
+    # about 3 GB; that phase revisits the size.
+    vb.memory = 2048
+    vb.cpus = 2
+    vb.linked_clone = true
+    # Keep the guest clock in sync after the host sleeps.
+    vb.customize ["guestproperty", "set", :id,
+                  "/VirtualBox/GuestAdd/VBoxService/--timesync-set-threshold", 10_000]
+  end
+end
