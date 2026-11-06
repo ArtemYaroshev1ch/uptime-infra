@@ -1,0 +1,50 @@
+# All file-level checks of the repository. Run them with `make lint`: it
+# starts pre-commit inside the toolbox container, so nothing besides Docker
+# is needed on the host (docs/adr/0002-toolbox-container.md).
+#
+# Hook versions are pinned by tag. Update them deliberately with
+# `make shell` + `pre-commit autoupdate`, then review the diff.
+# Later phases add terraform fmt, tflint, ansible-lint and promtool hooks.
+minimum_pre_commit_version: "4.0.0"
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=512]
+      - id: check-json
+      # Ansible, Jinja and multi-document YAML need the unsafe loader to
+      # parse custom tags (!vault); yamllint does the real YAML checks.
+      - id: check-yaml
+        args: [--allow-multiple-documents, --unsafe]
+      - id: detect-private-key
+
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.38.0
+    hooks:
+      - id: yamllint
+        args: [--strict]
+
+  # shellcheck-py ships the shellcheck binary as a Python wheel, so it
+  # runs without a system package.
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.11.0.1
+    hooks:
+      - id: shellcheck
+
+  - repo: https://github.com/Mateusz-Grzelinski/actionlint-py
+    rev: v1.7.12.25
+    hooks:
+      - id: actionlint
+
+  - repo: https://github.com/AleksaC/hadolint-py
+    rev: v2.15.1
+    hooks:
+      - id: hadolint

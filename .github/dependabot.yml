@@ -1,0 +1,48 @@
+# Dependabot opens PRs for outdated dependencies; CI checks each one like
+# any other PR. Weekly and grouped, so updates arrive as a few PRs a week.
+# Later phases add the terraform, gomod and docker-compose ecosystems.
+# pre-commit hook revisions are updated by hand (`pre-commit autoupdate`).
+version: 2
+
+updates:
+  # Actions are pinned by SHA; Dependabot bumps the SHA and the version
+  # comment next to it together.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: ci
+      include: scope
+    groups:
+      actions:
+        patterns: ["*"]
+
+  # Base image of the toolbox.
+  - package-ecosystem: docker
+    directory: /toolbox
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: build
+      include: scope
+    ignore:
+      # A new minor Python is a deliberate upgrade: Ansible supports new
+      # Python versions with a delay.
+      - dependency-name: python
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+
+  # Python tools of the toolbox (toolbox/requirements.txt).
+  - package-ecosystem: pip
+    directory: /toolbox
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: build
+      include: scope
+    groups:
+      toolbox:
+        patterns: ["*"]
