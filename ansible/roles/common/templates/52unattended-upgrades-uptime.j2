@@ -1,0 +1,15 @@
+// {{ ansible_managed }}
+// Overrides of 50unattended-upgrades. The allowed origins stay Ubuntu's
+// default: the release and its security pocket.
+Unattended-Upgrade::Remove-Unused-Kernel-Packages "true";
+Unattended-Upgrade::Remove-Unused-Dependencies "true";
+Unattended-Upgrade::Automatic-Reboot "{{ common_unattended_reboot | lower }}";
+// Docker is pinned to an exact version by the docker role; never upgrade
+// it behind Ansible's back.
+Unattended-Upgrade::Package-Blacklist {
+    "docker-ce";
+    "docker-ce-cli";
+    "containerd.io";
+    "docker-compose-plugin";
+    "docker-buildx-plugin";
+};

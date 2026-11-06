@@ -1,0 +1,16 @@
+# {{ ansible_managed }}
+# Ubuntu archives over HTTPS. Packages are verified by the archive
+# signature either way; HTTPS also keeps the package list private and gets
+# past middleboxes that stall large plain-HTTP downloads.
+{% set release = ansible_facts['distribution_release'] %}
+Types: deb
+URIs: {{ common_apt_mirror }}
+Suites: {{ release }} {{ release }}-updates {{ release }}-backports
+Components: main restricted universe multiverse
+Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+
+Types: deb
+URIs: {{ common_apt_security_mirror }}
+Suites: {{ release }}-security
+Components: main restricted universe multiverse
+Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg

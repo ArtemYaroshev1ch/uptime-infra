@@ -1,0 +1,64 @@
+# Upgrade installed packages on every run. A second run reports changed=0
+# unless the mirror published new updates in between.
+common_upgrade_packages: true
+# Longest the upgrade may take, in seconds (a fresh box: hundreds of
+# packages).
+common_upgrade_timeout: 3600
+
+# Ubuntu archives, over HTTPS. arm64 lives on ports.ubuntu.com.
+common_apt_mirror: >-
+  {{ 'https://ports.ubuntu.com/ubuntu-ports' if ansible_facts['architecture'] == 'aarch64'
+     else 'https://archive.ubuntu.com/ubuntu' }}
+common_apt_security_mirror: >-
+  {{ 'https://ports.ubuntu.com/ubuntu-ports' if ansible_facts['architecture'] == 'aarch64'
+     else 'https://security.ubuntu.com/ubuntu' }}
+
+# apt gives up on a silent mirror connection after this many seconds and
+# retries each download this many times.
+common_apt_timeout: 30
+common_apt_retries: 5
+
+common_packages:
+  - ca-certificates
+  - curl
+  - gnupg
+  - htop
+  - jq
+  - python3-apt
+  - unattended-upgrades
+
+# Servers run in UTC: logs, metrics and cron agree without conversions.
+common_timezone: Etc/UTC
+
+# unattended-upgrades installs security updates only (Ubuntu's default
+# origins in 50unattended-upgrades). Rebooting is left to the operator:
+# an unplanned reboot of a single-node stack is an outage.
+common_unattended_reboot: false
+
+# Kernel settings, written to /etc/sysctl.d/60-uptime.conf.
+common_sysctl:
+  # Ignore ICMP redirects and source routing: a host is not a router.
+  net.ipv4.conf.all.accept_redirects: 0
+  net.ipv4.conf.default.accept_redirects: 0
+  net.ipv6.conf.all.accept_redirects: 0
+  net.ipv6.conf.default.accept_redirects: 0
+  net.ipv4.conf.all.send_redirects: 0
+  net.ipv4.conf.all.accept_source_route: 0
+  net.ipv6.conf.all.accept_source_route: 0
+  # SYN flood protection.
+  net.ipv4.tcp_syncookies: 1
+  # log_martians is not set here: ufw applies its own /etc/ufw/sysctl.conf
+  # (log_martians=0) on every start, and two owners of one value make every
+  # run "changed". ufw's own logging covers dropped packets.
+  # Kernel pointers and logs are for root only.
+  kernel.kptr_restrict: 2
+  kernel.dmesg_restrict: 1
+  # Prefer dropping page cache over swapping out PostgreSQL.
+  vm.swappiness: 10
+  # Log collectors (Alloy, Phase 3) watch many files.
+  fs.inotify.max_user_watches: 524288
+  fs.inotify.max_user_instances: 512
+
+# Apply the values to the running kernel. Molecule turns this off: a
+# privileged test container shares the kernel of the machine running it.
+common_sysctl_apply: true

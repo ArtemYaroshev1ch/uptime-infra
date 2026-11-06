@@ -1,0 +1,84 @@
+- name: Configure apt timeouts and retries
+  ansible.builtin.template:
+    src: 80-uptime-network.j2
+    dest: /etc/apt/apt.conf.d/80-uptime-network
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Use the Ubuntu archives over HTTPS
+  ansible.builtin.template:
+    src: ubuntu.sources.j2
+    dest: /etc/apt/sources.list.d/ubuntu.sources
+    owner: root
+    group: root
+    mode: "0644"
+  register: common_sources
+
+# Right after a source change the cache must be refreshed, whatever its age.
+# A refreshed package index is not a change of the host's configuration,
+# so it never counts as "changed" (it would break the idempotence check
+# whenever the cache is older than an hour, and in --check mode).
+- name: Refresh the apt cache
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: "{{ 0 if common_sources is changed else 3600 }}"
+  changed_when: false
+
+# async: the upgrade runs detached from the ssh session and Ansible polls
+# it over new connections. Upgrading openssh-server stops sshd between
+# unpack and configure, which drops the session a synchronous task runs
+# in. Dropped mirror connections are retried by apt itself (see above).
+- name: Upgrade installed packages
+  ansible.builtin.apt:
+    upgrade: safe
+  when: common_upgrade_packages
+  async: "{{ common_upgrade_timeout }}"
+  poll: 10
+
+- name: Install base packages
+  ansible.builtin.apt:
+    name: "{{ common_packages }}"
+    state: present
+
+- name: Set the timezone
+  community.general.timezone:
+    name: "{{ common_timezone }}"
+
+- name: Configure periodic apt runs
+  ansible.builtin.template:
+    src: 20auto-upgrades.j2
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    owner: root
+    group: root
+    mode: "0644"
+
+# A separate file overrides single options of Ubuntu's
+# 50unattended-upgrades without copying (and then maintaining) all of it.
+- name: Configure unattended-upgrades
+  ansible.builtin.template:
+    src: 52unattended-upgrades-uptime.j2
+    dest: /etc/apt/apt.conf.d/52unattended-upgrades-uptime
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Enable unattended-upgrades
+  ansible.builtin.systemd_service:
+    name: unattended-upgrades
+    enabled: true
+    state: started
+  # In --check mode on a fresh host the package is not really installed,
+  # so the service does not exist yet.
+  ignore_errors: "{{ ansible_check_mode }}"
+
+# The whole file is templated: a key removed from common_sysctl disappears
+# from the host too.
+- name: Write kernel parameters
+  ansible.builtin.template:
+    src: 60-uptime.conf.j2
+    dest: /etc/sysctl.d/60-uptime.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Apply kernel parameters
