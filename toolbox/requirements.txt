@@ -1,4 +1,11 @@
 # Python tools of the toolbox image, pinned exactly (Dependabot: pip).
-# The linters themselves (yamllint, shellcheck, actionlint) are pinned in
+# The file-level linters (yamllint, shellcheck, actionlint) are pinned in
 # .pre-commit-config.yaml; pre-commit installs them into its own cache.
 pre-commit==4.7.0
+ansible-core==2.22.0
+ansible-lint==26.11.0
+# Molecule runs the playbooks twice in a systemd container to prove
+# idempotence (docs/adr/0004-ansible-idempotence-in-ci.md).
+molecule==26.11.0
+molecule-plugins[docker]==26.11.0
+docker==7.2.0
