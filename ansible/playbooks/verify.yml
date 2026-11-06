@@ -1,0 +1,84 @@
+# Checks the Definition of Done of the base host configuration. Read-only:
+# it changes nothing on the host. Used by `make local-verify` and as the
+# Molecule verifier.
+
+- name: Verify the host configuration
+  hosts: all
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Read the effective sshd configuration
+      ansible.builtin.command: /usr/sbin/sshd -T
+      register: verify_sshd
+      changed_when: false
+
+    - name: Assert ssh accepts keys only and no root
+      ansible.builtin.assert:
+        that:
+          - "'permitrootlogin no' in verify_sshd.stdout_lines"
+          - "'passwordauthentication no' in verify_sshd.stdout_lines"
+          - "'kbdinteractiveauthentication no' in verify_sshd.stdout_lines"
+          - "'authenticationmethods publickey' in verify_sshd.stdout_lines"
+        quiet: true
+
+    - name: Read the firewall status
+      ansible.builtin.command: ufw status verbose
+      register: verify_ufw
+      changed_when: false
+
+    - name: Assert ufw is active and denies incoming by default
+      ansible.builtin.assert:
+        that:
+          - "'Status: active' in verify_ufw.stdout"
+          - "'deny (incoming)' in verify_ufw.stdout"
+        quiet: true
+
+    - name: Check the fail2ban sshd jail
+      ansible.builtin.command: fail2ban-client status sshd
+      changed_when: false
+
+    - name: Check that Docker Compose is installed
+      ansible.builtin.command: docker compose version
+      changed_when: false
+
+    - name: Run a container
+      ansible.builtin.command: docker run --rm busybox:1.37.0 true
+      changed_when: false
+
+# Logins that must be refused, tried from the control node like an
+# attacker would. Skipped where there is no ssh (Molecule).
+- name: Verify refused logins from the control node
+  hosts: all
+  gather_facts: false
+  vars:
+    verify_ssh_args: >-
+      -o BatchMode=yes -o ConnectTimeout=10 -p {{ ansible_port | default(22) }}
+      -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null
+  tasks:
+    # With BatchMode the client never types a password; the server's
+    # answer lists the methods it would accept. "(publickey)" alone means
+    # passwords are not even offered.
+    - name: Try a password login
+      ansible.builtin.command: >-
+        ssh {{ verify_ssh_args }} -o PubkeyAuthentication=no
+        -o PreferredAuthentications=password,keyboard-interactive
+        {{ ansible_user }}@{{ ansible_host }} true
+      delegate_to: localhost
+      register: verify_password_login
+      changed_when: false
+      failed_when: >-
+        verify_password_login.rc != 255 or
+        'Permission denied (publickey)' not in verify_password_login.stderr
+      when: verify_from_controller | default(true)
+
+    - name: Try a root login with the deploy key
+      ansible.builtin.command: >-
+        ssh {{ verify_ssh_args }} -i {{ ansible_ssh_private_key_file }}
+        root@{{ ansible_host }} true
+      delegate_to: localhost
+      register: verify_root_login
+      changed_when: false
+      failed_when: >-
+        verify_root_login.rc != 255 or
+        'Permission denied' not in verify_root_login.stderr
+      when: verify_from_controller | default(true)
