@@ -1,0 +1,46 @@
+# Only these accounts may log in over ssh (AllowUsers). Every inventory
+# sets it: an empty list would lock everybody out, so the role refuses it.
+ssh_hardening_allowed_users: []
+
+ssh_hardening_port: 22
+
+# Admin access to Prometheus, Alertmanager and Loki goes through an ssh
+# tunnel (ssh -L), so local forwarding stays on; remote forwarding, agent
+# and X11 forwarding are off.
+ssh_hardening_allow_tcp_forwarding: local
+
+ssh_hardening_max_auth_tries: 3
+ssh_hardening_login_grace_time: 30s
+# Drop dead sessions after 2 x 300 s without an answer.
+ssh_hardening_client_alive_interval: 300
+ssh_hardening_client_alive_count_max: 2
+
+# Modern algorithms only (post-quantum hybrid and curve25519 key exchange,
+# AEAD ciphers, encrypt-then-MAC). The ctr ciphers, non-etm SHA-2 MACs
+# and group16/18 key exchange stay for older clients (Vagrant's net-ssh).
+ssh_hardening_kex_algorithms:
+  - mlkem768x25519-sha256
+  - sntrup761x25519-sha512
+  - sntrup761x25519-sha512@openssh.com
+  - curve25519-sha256
+  - curve25519-sha256@libssh.org
+  - diffie-hellman-group18-sha512
+  - diffie-hellman-group16-sha512
+ssh_hardening_ciphers:
+  - chacha20-poly1305@openssh.com
+  - aes256-gcm@openssh.com
+  - aes128-gcm@openssh.com
+  - aes256-ctr
+  - aes192-ctr
+  - aes128-ctr
+ssh_hardening_macs:
+  - hmac-sha2-512-etm@openssh.com
+  - hmac-sha2-256-etm@openssh.com
+  - umac-128-etm@openssh.com
+  - hmac-sha2-512
+  - hmac-sha2-256
+ssh_hardening_host_key_algorithms:
+  - ssh-ed25519
+  - ecdsa-sha2-nistp256
+  - rsa-sha2-512
+  - rsa-sha2-256

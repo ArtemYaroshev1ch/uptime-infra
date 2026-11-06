@@ -1,0 +1,50 @@
+- name: Refuse to lock everybody out
+  ansible.builtin.assert:
+    that:
+      - ssh_hardening_allowed_users | length > 0
+      # Over ssh, the account Ansible uses must stay allowed (Molecule
+      # connects with docker exec and has no ssh account).
+      - ansible_connection | default('ssh') not in ['ssh', 'ansible.builtin.ssh']
+        or ansible_user in ssh_hardening_allowed_users
+    fail_msg: >-
+      ssh_hardening_allowed_users must list at least the account Ansible connects as
+      ({{ ansible_user | default('unknown') }}), otherwise this run would end
+      with no way back in.
+    quiet: true
+
+- name: Install the OpenSSH server
+  ansible.builtin.apt:
+    name: openssh-server
+    state: present
+
+# `sshd -t` needs the privilege separation directory, which exists only
+# while sshd runs (Ubuntu starts it on demand through ssh.socket).
+- name: Ensure the sshd runtime directory exists
+  ansible.builtin.file:
+    path: /run/sshd
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+# sshd_config Includes sshd_config.d/*.conf at its top, and for most
+# options the first value read wins, so the 00- prefix takes precedence
+# over everything else (including cloud-init's 50-cloud-init.conf).
+# validate: the new file is checked by sshd itself (syntax, option values,
+# algorithm names) before it replaces the old one.
+- name: Write the hardened sshd configuration
+  ansible.builtin.template:
+    src: 00-uptime-hardening.conf.j2
+    dest: /etc/ssh/sshd_config.d/00-uptime-hardening.conf
+    owner: root
+    group: root
+    mode: "0644"
+    validate: /usr/sbin/sshd -t -f %s
+  notify: Reload ssh
+
+# Then the whole effective configuration (sshd_config with every drop-in).
+# If it fails, the play stops before the handler: the running sshd keeps
+# serving its old, loaded configuration.
+- name: Check the effective sshd configuration
+  ansible.builtin.command: /usr/sbin/sshd -t
+  changed_when: false
