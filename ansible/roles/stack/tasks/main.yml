@@ -1,0 +1,46 @@
+# Order (docs/adr/0005-application-stack.md):
+#   files -> postgres healthy -> migrate up -> everything else, healthy.
+# A failed migration stops the run before any application container is
+# created or replaced, so nothing new ever starts on an old schema.
+
+# community.docker.docker_compose_v2 drives the docker CLI and parses the
+# Compose file with PyYAML on the host.
+- name: Install the Compose module prerequisites
+  ansible.builtin.apt:
+    name: python3-yaml
+    state: present
+
+- name: Write the stack files
+  ansible.builtin.import_tasks: files.yml
+
+- name: Start postgres
+  community.docker.docker_compose_v2:
+    project_src: "{{ stack_dir }}"
+    project_name: "{{ stack_project }}"
+    services: [postgres]
+    state: present
+    pull: missing
+    wait: true
+    wait_timeout: "{{ stack_wait_timeout }}"
+
+# `run`, not a service in `up`: Compose would start a finished one-shot
+# container again on every `up` and report a change every time. The
+# migrate command logs "applied":0 when the schema is already current.
+- name: Apply the database migrations
+  ansible.builtin.command:
+    cmd: docker compose --project-name {{ stack_project }} run --rm --quiet-pull migrate
+    chdir: "{{ stack_dir }}"
+  register: stack_migrate
+  changed_when: '''"applied":0'' not in stack_migrate.stdout'
+  # A dry run (--check) must not touch the database.
+  when: not ansible_check_mode
+
+- name: Start the stack
+  community.docker.docker_compose_v2:
+    project_src: "{{ stack_dir }}"
+    project_name: "{{ stack_project }}"
+    state: present
+    pull: missing
+    remove_orphans: true
+    wait: true
+    wait_timeout: "{{ stack_wait_timeout }}"

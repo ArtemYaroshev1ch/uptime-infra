@@ -19,6 +19,26 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends git openssh-client rsync \
     && rm -rf /var/lib/apt/lists/*
 
+# Compose, standalone binary: `make test-compose` validates the rendered
+# Compose file with `docker-compose config`, which needs no daemon. Same
+# version as the docker-compose-plugin on the hosts (role docker); the
+# checksums come from the release's checksums.txt.
+ARG COMPOSE_VERSION=5.7.0
+ARG COMPOSE_SHA256_X86_64=7758048ad38e580f22559603312874fec8bb638d021a9e64182385fc17cc12a2
+ARG COMPOSE_SHA256_AARCH64=15861535d14e26555736b49376c95e14bfd94285366c8446bfac7156a972e76f
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+RUN arch="$(uname -m)" \
+    && case "$arch" in \
+         x86_64) sum="$COMPOSE_SHA256_X86_64" ;; \
+         aarch64) sum="$COMPOSE_SHA256_AARCH64" ;; \
+         *) echo "unsupported architecture: $arch" >&2; exit 1 ;; \
+       esac \
+    && python3 -c "import urllib.request, sys; urllib.request.urlretrieve(sys.argv[1], sys.argv[2])" \
+         "https://github.com/docker/compose/releases/download/v${COMPOSE_VERSION}/docker-compose-linux-${arch}" \
+         /usr/local/bin/docker-compose \
+    && echo "${sum}  /usr/local/bin/docker-compose" | sha256sum -c - \
+    && chmod 0755 /usr/local/bin/docker-compose
+
 COPY toolbox/requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir --root-user-action=ignore -r /tmp/requirements.txt \
     && rm /tmp/requirements.txt

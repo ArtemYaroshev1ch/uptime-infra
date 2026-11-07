@@ -1,8 +1,8 @@
 name: CI
 
 # Every job calls a make target, so a CI failure can be reproduced locally
-# with the same command. Later phases add terraform, observability, compose
-# and Go jobs. ansible-lint runs in the lint job (pre-commit).
+# with the same command. Later phases add terraform, observability and Go
+# jobs. ansible-lint runs in the lint job (pre-commit).
 
 on:
   push:
@@ -39,6 +39,15 @@ jobs:
       # site.yml twice in a systemd container: the second run must report
       # changed=0 (docs/adr/0004-ansible-idempotence-in-ci.md).
       - run: make test-ansible
+
+  compose:
+    name: Compose (render and validate the stack)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # The Jinja template of roles/stack rendered for local and prod, then
+      # `docker-compose config --quiet` (no secret values are printed).
+      - run: make test-compose
 
   secrets:
     name: Secrets (gitleaks)

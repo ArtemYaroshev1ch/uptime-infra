@@ -1,9 +1,10 @@
 # First login to a fresh host: create the `deploy` user that every later
-# playbook connects as. Runs as the image's initial user (root on a cloud
-# server, vagrant on the local VM); after site.yml has hardened ssh, root
-# can no longer log in, so this playbook is only for fresh hosts.
+# playbook connects as. Runs as root with the key the provider installed
+# (a cloud server; the local server gets it from scripts/local-server.sh);
+# after site.yml has hardened ssh, root can no longer log in, so this
+# playbook is only for fresh hosts.
 #
-#   make local-bootstrap        # local VM
+#   make local-bootstrap        # local server (make local-up runs it once)
 - name: Bootstrap the deploy user
   hosts: all
   become: true

@@ -47,12 +47,29 @@ TOOLBOX_DOCKER := docker run --rm -i $(TTY) \
 	-v /var/run/docker.sock:/var/run/docker.sock \
 	$(TOOLBOX_IMAGE)
 
-# Ansible against the local VM, with its ssh keys in place.
-LOCAL_ANSIBLE := $(TOOLBOX) scripts/with-local-keys.sh
-# Vagrant runs on the host (it drives VirtualBox) from local/.
-export VAGRANT_CWD := $(CURDIR)/local
-
 GITLEAKS_IMAGE := ghcr.io/gitleaks/gitleaks:v8.30.1
+
+# The local server: a systemd container on its own Docker network
+# (scripts/local-server.sh, docs/adr/0007). The toolbox joins that network,
+# so Ansible and the port scan reach the server like another machine would.
+LOCAL_SERVER := uptime-local
+LOCAL_NETWORK := uptime-local
+LOCAL_IP := 172.30.56.10
+LOCAL_TOOLBOX := docker run --rm -i $(TTY) --network $(LOCAL_NETWORK) \
+	-v "$(CURDIR):/repo" \
+	-v $(TOOLBOX_CACHE):/cache \
+	$(TOOLBOX_IMAGE)
+# Ansible against the local server, with its keys and vault password in place.
+LOCAL_ANSIBLE := $(LOCAL_TOOLBOX) scripts/with-local-keys.sh
+
+# Caddy is published on the workstation's 127.0.0.1; sslip.io resolves the
+# name to it.
+LOCAL_APP_URL := https://app.127.0.0.1.sslip.io
+LOCAL_VARS := ansible/inventories/local/group_vars/all/vars.yml
+LOCAL_APP_VERSION = $(shell awk '/^app_version:/ { print $$2 }' $(LOCAL_VARS))
+# Root of Caddy's local CA (make local-ca), trusted by the smoke test.
+LOCAL_CA := local/caddy-root.crt
+CADDY_ROOT_ON_SERVER := /opt/uptime/caddy/data/caddy/pki/authorities/local/root.crt
 
 ##@ General
 
@@ -74,10 +91,16 @@ shell: toolbox ## Open a shell in the toolbox with the repository mounted
 lint: toolbox ## Run every pre-commit hook on all files (yamllint, shellcheck, actionlint, hadolint, ...)
 	$(TOOLBOX) pre-commit run --all-files --show-diff-on-failure --color=always
 
-test: test-ansible ## Run every test
+test: test-ansible test-compose ## Run every test
 
 test-ansible: toolbox ## Molecule: site.yml twice in a systemd container, the second run must report changed=0
 	$(TOOLBOX_DOCKER) sh -c 'cd ansible && molecule test'
+
+# -i localhost, : no inventory, so no group_vars (and no local vault) leak
+# in; the playbook loads exactly the variable files it names.
+test-compose: toolbox ## Render the stack of local and prod, validate it with docker-compose config
+	$(TOOLBOX) sh -c 'for env in local prod; do \
+		ansible-playbook -i localhost, ansible/playbooks/render-stack.yml -e render_env=$$env || exit 1; done'
 
 # The whole history, not just the working tree: a secret removed in a later
 # commit is still in the repository. Findings are redacted in the output.
@@ -85,37 +108,57 @@ secrets: ## Look for secrets in the git history (gitleaks)
 	docker run --rm -v "$(CURDIR):/repo" $(GITLEAKS_IMAGE) \
 		git /repo --no-banner --redact
 
-##@ Local environment (Vagrant VM, docs/adr/0003-local-only-environment.md)
+##@ Local environment (a systemd container as the server, docs/adr/0007)
 
-local-up: ## Create/start the VM and configure it (bootstrap + site)
-	vagrant up
-	$(MAKE) local-bootstrap local-site
+# The keys must exist before the server gets root's bootstrap key; the
+# deploy user is created only once (after site.yml root cannot log in).
+local-up: toolbox ## Create/start the local server and configure it (bootstrap once + site)
+	$(TOOLBOX) scripts/with-local-keys.sh true
+	scripts/local-server.sh up
+	@if docker exec $(LOCAL_SERVER) id deploy >/dev/null 2>&1; then \
+		echo "deploy exists: bootstrap skipped"; else $(MAKE) local-bootstrap; fi
+	$(MAKE) local-site
 
-local-bootstrap: toolbox ## Create the deploy user (logs in as vagrant)
+local-bootstrap: toolbox ## Create the deploy user (logs in as root with the bootstrap key)
 	$(LOCAL_ANSIBLE) ansible-playbook ansible/playbooks/bootstrap.yml
 
-local-site: toolbox ## Apply site.yml to the VM
+local-site: toolbox ## Apply site.yml to the local server
 	$(LOCAL_ANSIBLE) ansible-playbook ansible/playbooks/site.yml
 
-local-check: toolbox ## Dry run of site.yml against the VM (--check --diff)
+local-check: toolbox ## Dry run of site.yml against the local server (--check --diff)
 	$(LOCAL_ANSIBLE) ansible-playbook ansible/playbooks/site.yml --check --diff
 
 local-idempotence: toolbox ## Run site.yml again and fail unless it reports changed=0
 	$(LOCAL_ANSIBLE) scripts/check-idempotence.sh ansible/playbooks/site.yml
 
-local-verify: toolbox ## Check the VM: no password or root login, ufw active, Docker works
+local-verify: toolbox ## Check: no password or root login, ufw active, stack healthy, only 80/443 published
 	$(LOCAL_ANSIBLE) ansible-playbook ansible/playbooks/verify.yml
 
-local-ssh: ## Open a shell on the VM as the vagrant user
-	vagrant ssh
+local-ca: toolbox ## Fetch the root certificate of Caddy's local CA into local/caddy-root.crt
+	$(LOCAL_ANSIBLE) ansible all --become -m ansible.builtin.fetch \
+		-a "src=$(CADDY_ROOT_ON_SERVER) dest=/repo/$(LOCAL_CA) flat=true"
 
-local-halt: ## Stop the VM (keeps its disk)
-	vagrant halt
+local-smoke: local-ca ## Smoke test from the workstation through Caddy: HTTPS, register, monitor, check
+	BASE_URL=$(LOCAL_APP_URL) SMOKE_CACERT=$(LOCAL_CA) \
+		EXPECTED_VERSION=$(LOCAL_APP_VERSION) sh scripts/smoke-test.sh
+
+local-scan: toolbox ## Scan the server from another machine (the toolbox): only 22, 80, 443 may answer
+	$(LOCAL_TOOLBOX) bash scripts/port-scan.sh $(LOCAL_IP)
+
+local-ssh: ## Open a shell on the local server as the deploy user
+	docker exec -it -u deploy -w /home/deploy $(LOCAL_SERVER) bash -l
+
+local-status: ## Show whether the local server exists and runs
+	scripts/local-server.sh status
+
+local-halt: ## Stop the local server (keeps its disk, images and database)
+	scripts/local-server.sh halt
 
 # Never run by the assistant without an explicit request (CLAUDE.md).
-local-destroy: ## Delete the VM and its disk
-	vagrant destroy
+local-destroy: ## Delete the local server, its volumes (database!) and network
+	scripts/local-server.sh destroy
 
-.PHONY: help toolbox shell lint test test-ansible secrets \
+.PHONY: help toolbox shell lint test test-ansible test-compose secrets \
 	local-up local-bootstrap local-site local-check local-idempotence \
-	local-verify local-ssh local-halt local-destroy
+	local-verify local-ca local-smoke local-scan local-ssh local-status \
+	local-halt local-destroy

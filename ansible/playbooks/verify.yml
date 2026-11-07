@@ -1,4 +1,5 @@
-# Checks the Definition of Done of the base host configuration. Read-only:
+# Checks the Definition of Done of the host configuration and the
+# application stack. Read-only:
 # it changes nothing on the host. Used by `make local-verify` and as the
 # Molecule verifier.
 
@@ -44,6 +45,47 @@
     - name: Run a container
       ansible.builtin.command: docker run --rm busybox:1.37.0 true
       changed_when: false
+
+    # --- Application stack (role stack) -----------------------------------
+    - name: List the containers of the stack
+      ansible.builtin.command: docker compose --project-name uptime ps --all --format json
+      register: verify_stack_ps
+      changed_when: false
+
+    - name: Assert every service of the stack runs and is healthy
+      vars:
+        verify_containers: "{{ verify_stack_ps.stdout_lines | map('from_json') | list }}"
+        verify_services: "{{ verify_containers | map(attribute='Service') | list }}"
+        verify_unhealthy: >-
+          {{ verify_containers | rejectattr('Health', 'eq', 'healthy') | map(attribute='Name') | list }}
+      ansible.builtin.assert:
+        that:
+          - "'postgres' in verify_services"
+          - "'worker' in verify_services"
+          - "'caddy' in verify_services"
+          - verify_services | select('match', '^api-') | list | length > 0
+          - verify_containers | rejectattr('State', 'eq', 'running') | list | length == 0
+          - verify_unhealthy | length == 0
+        fail_msg: "Not running or not healthy: {{ verify_unhealthy }}"
+        quiet: true
+
+    # Docker publishes ports with its own iptables rules, past ufw: a
+    # published postgres or ops port would be open to the internet even
+    # with ufw active. Every container on the host is checked.
+    - name: List the published ports of all containers
+      ansible.builtin.command: docker ps --format json
+      register: verify_docker_ps
+      changed_when: false
+
+    - name: Assert only Caddy's 80 and 443 are published
+      vars:
+        verify_published: >-
+          {{ verify_docker_ps.stdout_lines | map('from_json') | map(attribute='Ports')
+             | map('regex_findall', ':(\d+)->') | flatten | map('int') | unique | sort }}
+      ansible.builtin.assert:
+        that: verify_published | difference([80, 443]) | length == 0
+        fail_msg: "Published ports besides 80/443: {{ verify_published | difference([80, 443]) }}"
+        quiet: true
 
 # Logins that must be refused, tried from the control node like an
 # attacker would. Skipped where there is no ssh (Molecule).

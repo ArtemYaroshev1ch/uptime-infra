@@ -1,0 +1,68 @@
+# The stack's files: compose.yml, env files with secrets, Caddyfile. Also
+# used on its own by playbooks/render-stack.yml (CI renders and validates
+# the Compose file without a host).
+
+- name: Check the required variables
+  ansible.builtin.assert:
+    that:
+      - app_version is defined
+      - app_version is match('^[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?$')
+      - domain is defined and domain | length > 0
+      - stack_active_color in stack_api_colors
+      - stack_api_colors[stack_active_color] | default('') | length > 0
+      - postgres_password is defined and postgres_password | length >= 16
+      - jwt_secret is defined and jwt_secret | length >= 32
+    fail_msg: >-
+      app_version must be SemVer without "v", domain must be set, the active
+      color must have a version, and the vault must define postgres_password
+      (16+ chars) and jwt_secret (32+ chars).
+    quiet: true
+
+- name: Create the stack directories
+  ansible.builtin.file:
+    path: "{{ stack_dir }}/{{ item.path }}"
+    state: directory
+    owner: "{{ item.owner | default('root') }}"
+    group: "{{ item.owner | default('root') }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - {path: "", mode: "0755"}
+    # Secrets: root only.
+    - {path: env, mode: "0700"}
+    - {path: caddy, mode: "0755"}
+    - {path: caddy/etc, mode: "0755"}
+    # Caddy runs as 65532 and keeps certificates and its CA here.
+    - {path: caddy/data, mode: "0700", owner: "65532"}
+    - {path: caddy/config, mode: "0700", owner: "65532"}
+  loop_control:
+    label: "{{ stack_dir }}/{{ item.path }}"
+
+- name: Write the env files with secrets
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "{{ stack_dir }}/env/{{ item }}"
+    owner: root
+    group: root
+    mode: "0600"
+  loop:
+    - app.env
+    - postgres.env
+  # The diff and the result would print the secrets.
+  no_log: true
+
+- name: Write compose.yml
+  ansible.builtin.template:
+    src: compose.yml.j2
+    dest: "{{ stack_dir }}/compose.yml"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Write the Caddyfile
+  ansible.builtin.template:
+    src: Caddyfile.j2
+    dest: "{{ stack_dir }}/caddy/etc/Caddyfile"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload caddy

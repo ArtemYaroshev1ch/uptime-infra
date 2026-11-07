@@ -1,6 +1,7 @@
 # 0004. Ansible idempotence is tested with Molecule in a systemd container
 
-- Status: accepted
+- Status: accepted (since ADR-0007 the local environment is a systemd
+  container built from the same image as Molecule's, not a Vagrant VM)
 - Date: 2026-11-06
 
 ## Context

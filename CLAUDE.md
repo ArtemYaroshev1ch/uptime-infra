@@ -84,36 +84,53 @@ The production app version is the single variable `app_version` in
 - **0002 — toolbox container.** Every check (pre-commit, linters, later
   Ansible, Terraform, promtool) runs in `toolbox/Dockerfile` via `make`;
   CI calls the same targets. Add new tools to the toolbox, not to the host.
-- **0003 — local only.** No cloud account: the Vagrant VM (`local`
+- **0003 — local only.** No cloud account: the local server (`local`
   inventory) is the primary environment; Terraform is validate-only (never
   `apply`); Caddy uses `tls internal` locally.
+- **0007 — local server is a container.** Not a VirtualBox VM (host RAM):
+  privileged systemd container `uptime-local` from `local/Dockerfile`
+  (also Molecule's image), network `uptime-local`, `172.30.56.10`; Ansible
+  over real ssh from the toolbox on that network; Caddy on `127.0.0.1`.
+- **0005 — stack.** One Compose project `uptime` in `/opt/uptime`;
+  `migrate` runs via `docker compose run` before `up` (idempotence); only
+  Caddy publishes ports; no root in any container.
+- **0006 — local secrets/TLS.** Local vault is generated and gitignored
+  (`local/.vault-pass`); app at `https://app.127.0.0.1.sslip.io`, CA
+  root via `make local-ca`.
 
 ## Make targets
 
 `make help` for the current list. Now: `help`, `toolbox`, `shell`, `lint`
 (`pre-commit run --all-files` in the toolbox, includes `ansible-lint`
-production profile), `test` (= `test-ansible`: Molecule idempotence test,
-ADR-0004), `secrets` (gitleaks over the history), and the local VM:
-`local-up`, `local-bootstrap`, `local-site`, `local-check`,
-`local-idempotence`, `local-verify`, `local-ssh`, `local-halt`,
-`local-destroy` (never without an explicit request). `make lint test` is the
-phase gate.
+production profile), `test` (= `test-ansible`: Molecule idempotence test
+incl. the stack, ADR-0004; + `test-compose`: render and
+`docker-compose config --quiet`), `secrets` (gitleaks over the history),
+and the local server: `local-up`, `local-bootstrap`, `local-site`,
+`local-check`, `local-idempotence`, `local-verify`, `local-ca`,
+`local-smoke` (HTTPS smoke test from the host), `local-scan` (port scan
+from another container), `local-ssh`, `local-status`, `local-halt`,
+`local-destroy` (removes the database volume; never without an explicit
+request). `make lint test` is the phase gate.
 
 ## Environment
 
 - Windows 11 Home, native, **no WSL**, no Python on the host. Project at
   `D:\projects\uptime-infra`.
-- Docker Desktop (must be running for every check). VirtualBox + Vagrant
-  are needed from Phase 1 (Hyper-V provider is unavailable on Home).
+- Docker Desktop (must be running for every check, and it also hosts the
+  local server container).
 - Git for Windows; `C:\Program Files\Git\bin` is in PATH, `usr\bin` is not.
   `core.autocrlf=true` system-wide, so `.gitattributes` forces LF.
 - GNU Make (ezwinports) runs recipes through Git's `sh`; the Makefile adds
   Git's `/usr/bin` to PATH and sets `MSYS_NO_PATHCONV=1` on Windows.
-- Local VM: `bento/ubuntu-26.04` at `192.168.56.10` (host-only). Docker
-  Desktop containers **cannot** reach the host-only network, so Ansible in
-  the toolbox connects via Vagrant's forward `host.docker.internal:2222`;
-  the browser on Windows uses `192.168.56.10`. ssh keys: `local/.ssh/`
-  (gitignored), copied with mode 0600 by `scripts/with-local-keys.sh`.
+- Local server: container `uptime-local` (`scripts/local-server.sh`) at
+  `172.30.56.10` on Docker network `uptime-local`; `make local-*` targets
+  run the toolbox on that network. ssh keys (`bootstrap`, `deploy`):
+  `local/.ssh/` (gitignored), copied with mode 0600 by
+  `scripts/with-local-keys.sh`. `docker.exe` needs relative or Windows
+  paths (path conversion is off).
 - Go 1.27 is installed (for `tools/restore-verifier` in Phase 7).
+- Host RAM is 7.4 GB and tight: Docker Desktop's limit is set in
+  `%USERPROFILE%\.wslconfig` (its data is on `D:\DockerData`). Keep
+  downloads off `C:`.
 - Bash heredocs with unbalanced apostrophes fail in the assistant's shell:
   write files with the editor tools. No `sed` on markdown tables with `|`.
