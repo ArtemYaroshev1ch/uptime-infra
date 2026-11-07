@@ -10,3 +10,5 @@ the old one gets `Status: superseded by NNNN`.
 | [0002](0002-toolbox-container.md) | All tooling runs in a pinned toolbox container |
 | [0003](0003-local-only-environment.md) | Local-only environment; Terraform in validate-only mode |
 | [0004](0004-ansible-idempotence-in-ci.md) | Ansible idempotence is tested with Molecule in a systemd container |
+| [0005](0005-application-stack.md) | Application stack: one Compose project, migrations outside `up`, least privilege |
+| [0006](0006-local-secrets-and-tls.md) | Local environment: generated vault, sslip.io and Caddy's own CA |

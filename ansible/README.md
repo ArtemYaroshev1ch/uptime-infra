@@ -12,8 +12,9 @@ Host and stack configuration. Ansible runs inside the toolbox container
 | `inventories/local/` | The Vagrant VM (`local/Vagrantfile`), the primary environment |
 | `inventories/prod/` | Production; `hosts.yml` is generated from Terraform (Phase 5) |
 | `playbooks/bootstrap.yml` | First login: creates the `deploy` user |
-| `playbooks/site.yml` | Full host configuration |
+| `playbooks/site.yml` | Full host configuration and the application stack |
 | `playbooks/verify.yml` | Read-only checks of the result |
+| `playbooks/render-stack.yml` | Renders the stack without a host and validates it (CI) |
 | `roles/` | One README per role |
 | `molecule/default/` | Idempotence test in a systemd container (ADR-0004) |
 
@@ -26,6 +27,16 @@ Host and stack configuration. Ansible runs inside the toolbox container
 | [`firewall`](roles/firewall/README.md) | `firewall` | ufw: deny incoming except ssh (rate-limited), 80, 443 |
 | [`fail2ban`](roles/fail2ban/README.md) | `fail2ban` | sshd jail from the journal |
 | [`docker`](roles/docker/README.md) | `docker` | Docker Engine + Compose, pinned, log rotation, live-restore |
+| [`stack`](roles/stack/README.md) | `stack` | postgres, migrate, api, worker, caddy with Compose; secrets from the vault |
+
+## Secrets
+
+Ansible Vault, `group_vars/all/vault.yml` per inventory. Production's is
+encrypted and committed; the names are listed in
+`inventories/prod/group_vars/all/vault.yml.example`. The local one is
+generated with random values on first use and gitignored
+(`docs/adr/0006-local-secrets-and-tls.md`). Every task that writes a secret
+has `no_log: true`. Rotation: `docs/operations.md`.
 
 ## Local environment
 
@@ -33,7 +44,9 @@ Host and stack configuration. Ansible runs inside the toolbox container
 make local-up            # vagrant up + bootstrap.yml + site.yml
 make local-check         # site.yml --check --diff
 make local-idempotence   # site.yml again, fails unless changed=0
-make local-verify        # no password/root login, ufw active, Docker runs
+make local-verify        # no password/root login, ufw active, stack healthy, only 80/443 published
+make local-smoke         # HTTPS smoke test through Caddy (from the workstation)
+make local-scan          # port scan of the VM (from the workstation)
 make local-ssh           # shell on the VM (vagrant user)
 make local-halt          # stop the VM
 ```
@@ -45,7 +58,9 @@ How the pieces connect:
 2. `scripts/with-local-keys.sh` (in the toolbox) creates the `deploy` key
    pair in `local/.ssh/` on first use (gitignored) and copies both keys to
    `/root/.ssh/uptime-local` with mode 0600: ssh refuses private keys that
-   look world-readable, and on a Windows bind mount every file does.
+   look world-readable, and on a Windows bind mount every file does. It
+   also creates the local vault on first use and sets
+   `ANSIBLE_VAULT_PASSWORD_FILE`.
 3. `bootstrap.yml` logs in as `vagrant`, creates `deploy` with the key and
    passwordless sudo.
 4. `site.yml` logs in as `deploy` from then on.
@@ -63,5 +78,7 @@ GitHub secret. A stricter setup (sudo password from Vault via
 
 - `make lint` runs `ansible-lint` (profile `production`, `.ansible-lint`),
   which includes a syntax check of every playbook.
-- `make test-ansible` runs Molecule: `site.yml` twice, the second run must
-  report `changed=0`, then `verify.yml`.
+- `make test-ansible` runs Molecule: `site.yml` twice (including the
+  stack), the second run must report `changed=0`, then `verify.yml`.
+- `make test-compose` renders the stack for `local` and `prod` and
+  validates it with `docker-compose config --quiet`.

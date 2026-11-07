@@ -87,17 +87,25 @@ The production app version is the single variable `app_version` in
 - **0003 — local only.** No cloud account: the Vagrant VM (`local`
   inventory) is the primary environment; Terraform is validate-only (never
   `apply`); Caddy uses `tls internal` locally.
+- **0005 — stack.** One Compose project `uptime` in `/opt/uptime`;
+  `migrate` runs via `docker compose run` before `up` (idempotence); only
+  Caddy publishes ports; no root in any container.
+- **0006 — local secrets/TLS.** Local vault is generated and gitignored
+  (`local/.vault-pass`); app at `https://app.192.168.56.10.sslip.io`, CA
+  root via `make local-ca`.
 
 ## Make targets
 
 `make help` for the current list. Now: `help`, `toolbox`, `shell`, `lint`
 (`pre-commit run --all-files` in the toolbox, includes `ansible-lint`
-production profile), `test` (= `test-ansible`: Molecule idempotence test,
-ADR-0004), `secrets` (gitleaks over the history), and the local VM:
-`local-up`, `local-bootstrap`, `local-site`, `local-check`,
-`local-idempotence`, `local-verify`, `local-ssh`, `local-halt`,
-`local-destroy` (never without an explicit request). `make lint test` is the
-phase gate.
+production profile), `test` (= `test-ansible`: Molecule idempotence test
+incl. the stack, ADR-0004; + `test-compose`: render and
+`docker-compose config --quiet`), `secrets` (gitleaks over the history),
+and the local VM: `local-up`, `local-bootstrap`, `local-site`,
+`local-check`, `local-idempotence`, `local-verify`, `local-ca`,
+`local-smoke` (HTTPS smoke test from the host), `local-scan` (port scan
+from the host), `local-ssh`, `local-halt`, `local-destroy` (never without
+an explicit request). `make lint test` is the phase gate.
 
 ## Environment
 
@@ -115,5 +123,8 @@ phase gate.
   the browser on Windows uses `192.168.56.10`. ssh keys: `local/.ssh/`
   (gitignored), copied with mode 0600 by `scripts/with-local-keys.sh`.
 - Go 1.27 is installed (for `tools/restore-verifier` in Phase 7).
+- Host RAM is 7.4 GB and tight: Docker Desktop is capped at 2 GB in
+  `%USERPROFILE%\.wslconfig`; Vagrant boxes and VMs live on `D:\DevData`
+  (`VAGRANT_HOME`, VirtualBox machine folder). Keep downloads off `C:`.
 - Bash heredocs with unbalanced apostrophes fail in the assistant's shell:
   write files with the editor tools. No `sed` on markdown tables with `|`.

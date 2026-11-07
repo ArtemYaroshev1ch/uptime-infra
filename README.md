@@ -34,12 +34,16 @@ deploy blue/green with automatic rollback, and back up and verify restores.
 
 ```sh
 make local-up       # create the Ubuntu 26.04 VM, bootstrap it, apply site.yml
-make local-verify   # no password or root login over ssh, ufw active, Docker runs
+make local-verify   # ssh hardening, ufw, the stack healthy, only 80/443 published
+make local-smoke    # HTTPS end to end: register, create a monitor, the worker checks it
+make local-scan     # port scan of the VM from the workstation
 ```
 
-The VM is reachable at `192.168.56.10`. What runs on it so far: base
-hardening (`common`, `ssh_hardening`, `firewall`, `fail2ban`) and Docker;
-see [`ansible/README.md`](ansible/README.md).
+The application is at <https://app.192.168.56.10.sslip.io> (certificate
+from Caddy's local CA: [`local/README.md`](local/README.md)). On the VM:
+base hardening (`common`, `ssh_hardening`, `firewall`, `fail2ban`), Docker
+and the application stack (`stack`: PostgreSQL, migrations, API, worker,
+Caddy); see [`ansible/README.md`](ansible/README.md).
 
 ## Requirements
 
@@ -55,7 +59,7 @@ Ansible and Molecule (later Terraform) run inside the toolbox container
 ```sh
 make help      # list of targets
 make lint      # every pre-commit hook on all files (incl. ansible-lint), inside the toolbox
-make test      # Molecule: site.yml twice in a container, the second run must report changed=0
+make test      # Molecule (site.yml twice, changed=0) + render and validate the Compose stack
 make secrets   # gitleaks over the whole git history
 make shell     # a shell in the toolbox, e.g. for `pre-commit autoupdate`
 ```
