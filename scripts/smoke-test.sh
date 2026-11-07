@@ -5,7 +5,7 @@
 # behind (the throwaway user stays: there is no delete-user API).
 #
 #   BASE_URL=https://app.example.com sh scripts/smoke-test.sh
-#   make local-smoke        # the local VM, trusting Caddy's local CA
+#   make local-smoke        # the local server, trusting Caddy's local CA
 #
 # Environment:
 #   BASE_URL          public URL of the application (required)
@@ -46,6 +46,19 @@ pass() { printf 'ok    %s\n' "$1"; }
 fail() { printf 'FAIL  %s\n' "$1"; failures=$((failures + 1)); }
 die() { printf 'FAIL  %s\n' "$1"; exit 1; }
 
+# check OK_MESSAGE FAIL_MESSAGE COMMAND...: a failed check is counted and
+# the test goes on. require: the same, but the test cannot go on without it.
+check() {
+	ok=$1 bad=$2
+	shift 2
+	if "$@"; then pass "$ok"; else fail "$bad"; fi
+}
+require() {
+	ok=$1 bad=$2
+	shift 2
+	if "$@"; then pass "$ok"; else die "$bad"; fi
+}
+
 # The CA option ("$@") goes to every request; certificate errors are real
 # failures, never skipped with --insecure.
 req() { curl -s --max-time 10 "$@"; }
@@ -83,15 +96,16 @@ case $code in
 esac
 
 headers=$(req "$@" -D - -o "$null" "$BASE_URL/healthz" | tr -d '\r')
-printf '%s\n' "$headers" | grep -qi '^strict-transport-security: max-age=' &&
-	pass "HSTS header" || fail "no Strict-Transport-Security header"
-printf '%s\n' "$headers" | grep -qi '^x-content-type-options: nosniff' &&
-	pass "X-Content-Type-Options header" || fail "no X-Content-Type-Options header"
-printf '%s\n' "$headers" | grep -qi '^server:' &&
-	fail "the Server header is exposed" || pass "no Server header"
+has_header() { printf '%s\n' "$headers" | grep -qi "$1"; }
+lacks_header() { ! has_header "$1"; }
+check "HSTS header" "no Strict-Transport-Security header" \
+	has_header '^strict-transport-security: max-age='
+check "X-Content-Type-Options header" "no X-Content-Type-Options header" \
+	has_header '^x-content-type-options: nosniff'
+check "no Server header" "the Server header is exposed" lacks_header '^server:'
 
 # --- application ---------------------------------------------------------------
-[ "$(status "$@" "$BASE_URL/healthz")" = 200 ] && pass "/healthz is 200" || fail "/healthz is not 200"
+check "/healthz is 200" "/healthz is not 200" [ "$(status "$@" "$BASE_URL/healthz")" = 200 ]
 
 version=$(req "$@" "$BASE_URL/version")
 case $version in
@@ -100,13 +114,13 @@ case $version in
 esac
 if [ -n "$EXPECTED_VERSION" ]; then
 	got=$(printf '%s' "$version" | json_field version)
-	[ "$got" = "$EXPECTED_VERSION" ] && pass "version is $EXPECTED_VERSION" ||
-		fail "version is '$got', want $EXPECTED_VERSION"
+	check "version is $EXPECTED_VERSION" "version is '$got', want $EXPECTED_VERSION" \
+		[ "$got" = "$EXPECTED_VERSION" ]
 fi
 
 # The ops port (9090) is not published; the public one never serves metrics.
 code=$(status "$@" "$BASE_URL/metrics")
-[ "$code" = 404 ] && pass "no /metrics on the public endpoint" || fail "public /metrics answered $code, want 404"
+check "no /metrics on the public endpoint" "public /metrics answered $code, want 404" [ "$code" = 404 ]
 
 # --- a user, a monitor and a check ---------------------------------------------
 email="smoke-$(date +%s)-$$@example.com"
@@ -115,16 +129,16 @@ creds="{\"email\":\"$email\",\"password\":\"$password\"}"
 json='Content-Type: application/json'
 
 code=$(status "$@" -X POST -H "$json" -d "$creds" "$BASE_URL/api/v1/auth/register")
-[ "$code" = 201 ] && pass "register $email" || die "register answered $code, want 201"
+require "register $email" "register answered $code, want 201" [ "$code" = 201 ]
 
 token=$(req "$@" -X POST -H "$json" -d "$creds" "$BASE_URL/api/v1/auth/login" | json_field access_token)
-[ -n "$token" ] && pass "login returns a token" || die "login returned no access_token"
+require "login returns a token" "login returned no access_token" [ -n "$token" ]
 auth="Authorization: Bearer $token"
 
 monitor=$(req "$@" -X POST -H "$json" -H "$auth" \
 	-d "{\"name\":\"smoke\",\"url\":\"$TARGET\",\"interval_seconds\":30}" \
 	"$BASE_URL/api/v1/monitors" | json_field id)
-[ -n "$monitor" ] && pass "create monitor $monitor for $TARGET" || die "monitor was not created"
+require "create monitor $monitor for $TARGET" "monitor was not created" [ -n "$monitor" ]
 
 # From here on, remove the monitor however the script ends. The CA option
 # is saved now: "$@" inside a trap is the trap's own (empty) list.

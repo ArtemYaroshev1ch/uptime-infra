@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Scans a host from outside and checks that only the expected ports answer:
 #
-#   scripts/port-scan.sh 192.168.56.10       # make local-scan
+#   scripts/port-scan.sh 172.30.56.10        # make local-scan (from the toolbox)
 #
 # The point is Docker: a published container port gets Docker's own
 # iptables rules and bypasses ufw, so "ufw is active" proves nothing about
