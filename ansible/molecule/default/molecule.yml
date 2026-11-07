@@ -17,7 +17,9 @@ driver:
 platforms:
   - name: uptime-molecule
     image: uptime-molecule-ubuntu:resolute
-    dockerfile: Dockerfile.j2
+    # The same image as the local environment (docs/adr/0007): CI tests the
+    # machine the operator runs.
+    dockerfile: ../../../local/Dockerfile
     pre_build_image: false
     privileged: true
     cgroupns_mode: host
