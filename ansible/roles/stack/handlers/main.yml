@@ -1,0 +1,12 @@
+# Graceful: Caddy loads the new config and keeps open connections; a bad
+# Caddyfile is rejected and the old config stays active (the handler fails
+# the run).
+- name: Reload caddy
+  ansible.builtin.command:
+    cmd: >-
+      docker compose --project-name {{ stack_project }}
+      exec -T caddy caddy reload --config /etc/caddy/Caddyfile
+    chdir: "{{ stack_dir }}"
+  changed_when: true
+  # playbooks/render-stack.yml renders the files without a Docker host.
+  when: stack_manage_containers | default(true)

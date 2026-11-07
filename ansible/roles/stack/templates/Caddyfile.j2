@@ -1,0 +1,52 @@
+# {{ ansible_managed }}
+# Reverse proxy and TLS of the stack (ansible/roles/stack).
+
+{
+	# The admin API (used by `caddy reload` and the healthcheck) listens
+	# inside the container only.
+	admin 127.0.0.1:2019
+{% if stack_tls_internal %}
+	# Caddy's own CA (tls internal below). It cannot add its root to a
+	# trust store in a read-only container; operators import it instead
+	# (local/README.md).
+	skip_install_trust
+{% elif stack_acme_email %}
+	email {{ stack_acme_email }}
+{% endif %}
+}
+
+(security_headers) {
+	header {
+		Strict-Transport-Security "max-age={{ stack_hsts_max_age }}; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+		# Do not advertise the proxy and its version.
+		-Server
+	}
+}
+
+{{ stack_app_host }} {
+{% if stack_tls_internal %}
+	tls internal
+{% endif %}
+	import security_headers
+	encode zstd gzip
+
+	# The ops port of the api is never proxied; the public API port does
+	# not serve /metrics either. Say so explicitly at the edge.
+	respond /metrics 404
+
+	reverse_proxy api-{{ stack_active_color }}:8080
+
+	log {
+		output stdout
+		format json
+	}
+}
+
+# Container healthcheck: plain HTTP on localhost inside the container, not
+# published and not logged (the admin API logs every request).
+http://127.0.0.1:2020 {
+	respond "ok" 200
+}

@@ -2,6 +2,17 @@
 
 env_name: local
 
+# --- Application -------------------------------------------------------------
+# Version of uptime-monitor on the VM (prod has its own app_version).
+app_version: 1.0.0
+
+# sslip.io resolves app.192.168.56.10.sslip.io to 192.168.56.10: a real
+# host name for Caddy and the browser without editing the hosts file.
+domain: 192.168.56.10.sslip.io
+# Let's Encrypt cannot reach a host-only VM: Caddy's own CA instead
+# (docs/adr/0006-local-secrets-and-tls.md).
+stack_tls_internal: true
+
 # --- Connection ------------------------------------------------------------
 # scripts/with-local-keys.sh copies the keys from local/.ssh and .vagrant
 # into this directory inside the toolbox container with mode 0600 (keys on

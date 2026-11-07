@@ -1,0 +1,26 @@
+# Secrets of production, as a list of names. The real file is vault.yml next
+# to this one, encrypted with ansible-vault (docs/operations.md, "Secrets"):
+#
+#   cp vault.yml.example vault.yml
+#   # replace every value, e.g. with: openssl rand -base64 33
+#   ansible-vault encrypt vault.yml --vault-password-file ~/.uptime-vault-pass
+#
+# The values below are placeholders. playbooks/render-stack.yml uses this
+# file to render and validate the Compose file in CI.
+
+# --- Phase 2: application stack ---------------------------------------------
+# 16+ characters. Changing it later needs ALTER ROLE too (docs/operations.md).
+postgres_password: change-me-change-me-change-me
+# 32+ bytes; signs the users' access tokens. Changing it logs everyone out.
+jwt_secret: change-me-change-me-change-me-change-me-change-me
+# Empty disables Telegram notifications of the application.
+telegram_bot_token: ""
+
+# --- Phase 3-4: observability and alerting ------------------------------------
+grafana_admin_password: change-me-change-me-change-me
+alertmanager_telegram_chat_id: ""
+healthchecks_ping_url: ""
+
+# --- Phase 7: backups ---------------------------------------------------------
+s3_access_key: ""
+s3_secret_key: ""

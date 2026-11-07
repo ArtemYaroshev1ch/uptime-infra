@@ -6,6 +6,17 @@
 
 env_name: prod
 
+# --- Application -------------------------------------------------------------
+# The production version of uptime-monitor: the one variable a release
+# changes (Phase 6: deploy.yml).
+app_version: 1.0.0
+
+# Without a registered domain the server's IP works through sslip.io
+# (PROMPT.md §8: domain or sslip.io mode). Phase 5 sets it from Terraform.
+domain: "{{ ansible_host }}.sslip.io"
+# Let's Encrypt account e-mail for expiry warnings (optional).
+stack_acme_email: ""
+
 ansible_user: deploy
 
 # The cloud image allows only root with the key Terraform installed.

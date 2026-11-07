@@ -1,0 +1,60 @@
+# --- Where the stack lives on the host ---------------------------------------
+# compose.yml, the env files and Caddy's files. The Compose project name is
+# fixed, so `docker compose -p uptime ...` works from any directory.
+stack_dir: /opt/uptime
+stack_project: uptime
+
+# --- Images (exact tags, never "latest") -------------------------------------
+# The application version itself is `app_version` in the inventory
+# (group_vars/all/vars.yml): the one variable a release changes.
+stack_app_image: ghcr.io/artemyaroshev1ch/uptime-monitor
+# Same server version as the application's integration tests
+# (uptime-monitor: pgtest.Image).
+stack_postgres_image: postgres:16.15-alpine3.24
+stack_caddy_image: caddy:2.11.9-alpine
+
+# --- Blue/green (Phase 6 switches colors; docs/adr/0005) ---------------------
+# Every color with a version gets an api-<color> service; Caddy sends traffic
+# to stack_active_color. Until the deploy role exists, only blue runs.
+stack_active_color: blue
+stack_api_colors:
+  blue: "{{ app_version }}"
+
+# --- Public endpoint -----------------------------------------------------------
+# The application answers on app.<domain> (`domain` comes from the
+# inventory). tls internal: Caddy's own CA instead of Let's Encrypt, for
+# hosts the internet cannot reach (the local VM).
+stack_app_host: "app.{{ domain }}"
+stack_tls_internal: false
+# Let's Encrypt account e-mail (expiry warnings); used when tls is public.
+stack_acme_email: ""
+# Strict-Transport-Security max-age: one year.
+stack_hsts_max_age: 31536000
+
+# --- Database --------------------------------------------------------------------
+stack_postgres_db: uptime
+stack_postgres_user: uptime
+# postgres_password comes from Ansible Vault.
+
+# --- Application settings (uptime-monitor PROMPT.md §12) -------------------------
+stack_app_log_level: info
+stack_app_db_max_conns: 10
+stack_app_worker_concurrency: 20
+
+# --- Resource limits -------------------------------------------------------------
+# Sized for the 2 GB local VM with headroom for Phase 3 (monitoring).
+stack_limits:
+  postgres: {mem: 512m, cpus: "1.0"}
+  migrate: {mem: 128m, cpus: "0.5"}
+  api: {mem: 256m, cpus: "0.5"}
+  worker: {mem: 256m, cpus: "0.5"}
+  caddy: {mem: 128m, cpus: "0.5"}
+
+# --- Logs (json-file, per container) -------------------------------------------
+stack_log_max_size: 10m
+stack_log_max_file: "3"
+
+# --- Start-up ---------------------------------------------------------------------
+# How long `compose up --wait` waits for every service to become healthy.
+# Generous: on a busy host api waits for postgres, caddy waits for api.
+stack_wait_timeout: 300
