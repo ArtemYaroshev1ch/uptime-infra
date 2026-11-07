@@ -1,0 +1,38 @@
+# Renders the stack files of one environment in the toolbox and validates
+# the Compose file with `docker-compose config` (no host, no daemon). Used
+# by `make test-compose` (CI job "compose"):
+#
+#   ansible-playbook -i localhost, ansible/playbooks/render-stack.yml -e render_env=prod
+#
+# The empty inventory keeps every inventory's group_vars (and the local
+# vault) out: only the files in vars_files below are loaded.
+#
+# Secrets come from prod's vault.yml.example (placeholders), so the output
+# contains nothing secret; it stays inside the throwaway container anyway.
+
+- name: Render and validate the stack of {{ render_env }}
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    render_env: prod
+    # Placeholder address (TEST-NET-3) for prod's sslip.io domain.
+    ansible_host: 203.0.113.10
+    stack_dir: /tmp/stack-render/{{ render_env }}
+    stack_manage_containers: false
+  vars_files:
+    - ../inventories/{{ render_env }}/group_vars/all/vars.yml
+    - ../inventories/prod/group_vars/all/vault.yml.example
+  tasks:
+    - name: Render the stack files
+      ansible.builtin.include_role:
+        name: stack
+        tasks_from: files.yml
+
+    # --quiet: validate only; the resolved config would include the env
+    # files' values.
+    - name: Validate compose.yml
+      ansible.builtin.command:
+        cmd: docker-compose --file compose.yml config --quiet
+        chdir: "{{ stack_dir }}"
+      changed_when: false

@@ -54,6 +54,16 @@ export VAGRANT_CWD := $(CURDIR)/local
 
 GITLEAKS_IMAGE := ghcr.io/gitleaks/gitleaks:v8.30.1
 
+# The local VM as the workstation sees it (host-only network) and the
+# application behind Caddy (sslip.io resolves the name to the VM).
+LOCAL_IP := 192.168.56.10
+LOCAL_APP_URL := https://app.$(LOCAL_IP).sslip.io
+LOCAL_VARS := ansible/inventories/local/group_vars/all/vars.yml
+LOCAL_APP_VERSION = $(shell awk '/^app_version:/ { print $$2 }' $(LOCAL_VARS))
+# Root of Caddy's local CA (make local-ca), trusted by the smoke test.
+LOCAL_CA := local/caddy-root.crt
+CADDY_ROOT_ON_VM := /opt/uptime/caddy/data/caddy/pki/authorities/local/root.crt
+
 ##@ General
 
 help: ## Show this help
@@ -74,10 +84,16 @@ shell: toolbox ## Open a shell in the toolbox with the repository mounted
 lint: toolbox ## Run every pre-commit hook on all files (yamllint, shellcheck, actionlint, hadolint, ...)
 	$(TOOLBOX) pre-commit run --all-files --show-diff-on-failure --color=always
 
-test: test-ansible ## Run every test
+test: test-ansible test-compose ## Run every test
 
 test-ansible: toolbox ## Molecule: site.yml twice in a systemd container, the second run must report changed=0
 	$(TOOLBOX_DOCKER) sh -c 'cd ansible && molecule test'
+
+# -i localhost, : no inventory, so no group_vars (and no local vault) leak
+# in; the playbook loads exactly the variable files it names.
+test-compose: toolbox ## Render the stack of local and prod, validate it with docker-compose config
+	$(TOOLBOX) sh -c 'for env in local prod; do \
+		ansible-playbook -i localhost, ansible/playbooks/render-stack.yml -e render_env=$$env || exit 1; done'
 
 # The whole history, not just the working tree: a secret removed in a later
 # commit is still in the repository. Findings are redacted in the output.
@@ -103,8 +119,19 @@ local-check: toolbox ## Dry run of site.yml against the VM (--check --diff)
 local-idempotence: toolbox ## Run site.yml again and fail unless it reports changed=0
 	$(LOCAL_ANSIBLE) scripts/check-idempotence.sh ansible/playbooks/site.yml
 
-local-verify: toolbox ## Check the VM: no password or root login, ufw active, Docker works
+local-verify: toolbox ## Check the VM: no password or root login, ufw active, stack healthy, only 80/443 published
 	$(LOCAL_ANSIBLE) ansible-playbook ansible/playbooks/verify.yml
+
+local-ca: toolbox ## Fetch the root certificate of Caddy's local CA into local/caddy-root.crt
+	$(LOCAL_ANSIBLE) ansible all --become -m ansible.builtin.fetch \
+		-a "src=$(CADDY_ROOT_ON_VM) dest=/repo/$(LOCAL_CA) flat=true"
+
+local-smoke: local-ca ## Smoke test through Caddy: HTTPS, register, monitor, the worker checks it
+	BASE_URL=$(LOCAL_APP_URL) SMOKE_CACERT=$(LOCAL_CA) \
+		EXPECTED_VERSION=$(LOCAL_APP_VERSION) sh scripts/smoke-test.sh
+
+local-scan: ## Scan the VM from the workstation: only 22, 80 and 443 may answer
+	bash scripts/port-scan.sh $(LOCAL_IP)
 
 local-ssh: ## Open a shell on the VM as the vagrant user
 	vagrant ssh
@@ -116,6 +143,7 @@ local-halt: ## Stop the VM (keeps its disk)
 local-destroy: ## Delete the VM and its disk
 	vagrant destroy
 
-.PHONY: help toolbox shell lint test test-ansible secrets \
+.PHONY: help toolbox shell lint test test-ansible test-compose secrets \
 	local-up local-bootstrap local-site local-check local-idempotence \
-	local-verify local-ssh local-halt local-destroy
+	local-verify local-ca local-smoke local-scan local-ssh local-halt \
+	local-destroy
