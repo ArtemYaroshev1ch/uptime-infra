@@ -5,7 +5,7 @@
 # The target is a privileged Ubuntu container with systemd as PID 1, close
 # enough to a VM for every role: services start, sshd reloads, ufw writes
 # its rules into the container's own network namespace and dockerd runs
-# inside it.
+# inside it, together with the whole application stack (role stack).
 dependency:
   # Collections are baked into the toolbox image.
   name: galaxy
@@ -52,6 +52,14 @@ provisioner:
         common_sysctl_apply: false
         # There is no ssh into the container to try logins over.
         verify_from_controller: false
+        # The application stack runs on the Docker engine inside the
+        # container. Throwaway values, not secrets: the database lives
+        # only as long as the test.
+        app_version: 1.0.0
+        domain: molecule.invalid
+        stack_tls_internal: true
+        postgres_password: molecule-only-not-a-secret
+        jwt_secret: molecule-only-not-a-secret-at-all-0123456789
   playbooks:
     converge: ../../playbooks/site.yml
     verify: ../../playbooks/verify.yml
