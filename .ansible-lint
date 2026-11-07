@@ -13,6 +13,9 @@ exclude_paths:
   - terraform/
   - toolbox/
   - .pre-commit-config.yaml
+  # Generated and encrypted on the workstation (docs/adr/0006); gitignored,
+  # so CI never has it and the linter has no password for it.
+  - ansible/inventories/local/group_vars/all/vault.yml
 
 # Fail on warnings too: a warning nobody fixes is noise.
 strict: true
