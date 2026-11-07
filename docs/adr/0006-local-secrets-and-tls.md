@@ -7,7 +7,7 @@
 
 The stack needs secrets (Postgres password, JWT secret, later Grafana and
 S3) from Ansible Vault and a public HTTPS name (PROMPT.md §9, §10). The
-local VM (ADR-0003) sits on a host-only network: no domain, no way for
+local environment (ADR-0003, ADR-0007) lives on the workstation: no domain, no way for
 Let's Encrypt to reach it, and nothing in it is worth protecting beyond
 the workstation.
 
@@ -29,9 +29,10 @@ the workstation.
   password outside the repository and in the `VAULT_PASSWORD` GitHub
   secret. Only `vault.yml.example` exists now; CI renders the stack with
   its placeholders.
-- **Host name via sslip.io:** `domain: 192.168.56.10.sslip.io`, so the
-  application is `https://app.192.168.56.10.sslip.io`. Public DNS resolves
-  it to the VM; no hosts-file edits.
+- **Host name via sslip.io:** `domain: 127.0.0.1.sslip.io`, so the
+  application is `https://app.127.0.0.1.sslip.io`. Public DNS resolves it
+  to `127.0.0.1`, where the local server publishes Caddy (ADR-0007); no
+  hosts-file edits.
 - **TLS from Caddy's own CA (`tls internal`).** `make local-ca` fetches the
   root certificate to `local/caddy-root.crt` (gitignored); the smoke test
   trusts exactly that file instead of using `--insecure`, and the operator
@@ -50,11 +51,13 @@ the workstation.
 
 ## Consequences
 
-- A fresh clone gets new local secrets automatically; recreating the VM
-  with an old vault works, deleting the vault of a running VM breaks the
-  database login (delete the `uptime_pgdata` volume too, or keep the file).
+- A fresh clone gets new local secrets automatically; recreating the
+  local server with an old vault works, deleting the vault of a running
+  server breaks the database login (recreate the server too, or keep the
+  file).
 - The smoke test depends on public DNS for sslip.io. Some routers block
-  DNS answers with private addresses ("DNS rebinding protection"); then
-  add `192.168.56.10 app.192.168.56.10.sslip.io` to the hosts file.
+  DNS answers with private or loopback addresses ("DNS rebinding
+  protection"); then add `127.0.0.1 app.127.0.0.1.sslip.io` to the hosts
+  file.
 - On Windows, curl (Schannel) cannot check revocation for a private CA;
   the smoke test passes `--ssl-no-revoke` together with `--cacert`.

@@ -9,7 +9,7 @@ Host and stack configuration. Ansible runs inside the toolbox container
 |---|---|
 | `ansible.cfg` | Settings (read through `ANSIBLE_CONFIG`, set in the toolbox) |
 | `requirements.yml` | Collections, pinned; baked into the toolbox image |
-| `inventories/local/` | The Vagrant VM (`local/Vagrantfile`), the primary environment |
+| `inventories/local/` | The local server, a systemd container (`local/Dockerfile`, ADR-0007); the primary environment |
 | `inventories/prod/` | Production; `hosts.yml` is generated from Terraform (Phase 5) |
 | `playbooks/bootstrap.yml` | First login: creates the `deploy` user |
 | `playbooks/site.yml` | Full host configuration and the application stack |
@@ -41,29 +41,30 @@ has `no_log: true`. Rotation: `docs/operations.md`.
 ## Local environment
 
 ```sh
-make local-up            # vagrant up + bootstrap.yml + site.yml
+make local-up            # server container up + bootstrap.yml (once) + site.yml
 make local-check         # site.yml --check --diff
 make local-idempotence   # site.yml again, fails unless changed=0
 make local-verify        # no password/root login, ufw active, stack healthy, only 80/443 published
 make local-smoke         # HTTPS smoke test through Caddy (from the workstation)
-make local-scan          # port scan of the VM (from the workstation)
-make local-ssh           # shell on the VM (vagrant user)
-make local-halt          # stop the VM
+make local-scan          # port scan of the server (from another container)
+make local-ssh           # shell on the server (deploy user, docker exec)
+make local-halt          # stop the server
 ```
 
 How the pieces connect:
 
-1. Vagrant (on the host) creates the VM at `192.168.56.10` and a key for the
-   `vagrant` user in `local/.vagrant/`.
-2. `scripts/with-local-keys.sh` (in the toolbox) creates the `deploy` key
-   pair in `local/.ssh/` on first use (gitignored) and copies both keys to
-   `/root/.ssh/uptime-local` with mode 0600: ssh refuses private keys that
-   look world-readable, and on a Windows bind mount every file does. It
-   also creates the local vault on first use and sets
+1. `scripts/with-local-keys.sh` (in the toolbox) creates the `bootstrap`
+   and `deploy` key pairs in `local/.ssh/` on first use (gitignored) and
+   copies them to `/root/.ssh/uptime-local` with mode 0600: ssh refuses
+   private keys that look world-readable, and on a Windows bind mount every
+   file does. It also creates the local vault on first use and sets
    `ANSIBLE_VAULT_PASSWORD_FILE`.
-3. `bootstrap.yml` logs in as `vagrant`, creates `deploy` with the key and
+2. `scripts/local-server.sh` (on the workstation) starts the server
+   container `uptime-local` at `172.30.56.10` and installs the bootstrap
+   key for root (ADR-0007). The toolbox joins the same Docker network.
+3. `bootstrap.yml` logs in as `root`, creates `deploy` with the key and
    passwordless sudo.
-4. `site.yml` logs in as `deploy` from then on.
+4. `site.yml` logs in as `deploy` from then on; root is refused.
 
 ## The deploy user and sudo
 

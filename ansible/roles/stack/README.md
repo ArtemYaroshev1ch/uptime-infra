@@ -57,7 +57,7 @@ Required from the inventory: `app_version`, `domain`, and from the vault
 | `stack_api_colors` | `{blue: "{{ app_version }}"}` | Color → version; a color without version is not rendered |
 | `stack_active_color` | `blue` | The color Caddy proxies to |
 | `stack_app_host` | `app.{{ domain }}` | Public host name |
-| `stack_tls_internal` | `false` | `true`: Caddy's own CA (local VM) instead of Let's Encrypt |
+| `stack_tls_internal` | `false` | `true`: Caddy's own CA (local server) instead of Let's Encrypt |
 | `stack_acme_email` | `""` | Let's Encrypt account e-mail |
 | `stack_limits` | see `defaults/main.yml` | Memory and CPU per service |
 | `stack_wait_timeout` | `300` | Seconds `up --wait` waits for healthy |

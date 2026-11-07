@@ -8,7 +8,7 @@ rollback (Phase 6), backups (Phase 7).
 Everything of the application lives in `/opt/uptime` on the host (layout in
 `ansible/roles/stack/README.md`). Docker data is in `/var/lib/docker`.
 
-| Data | Where | Size (local VM, Phase 2) | Lost on |
+| Data | Where | Size (local server, Phase 2) | Lost on |
 |---|---|---|---|
 | PostgreSQL | named volume `uptime_pgdata` | < 100 MB, grows with checks (`CHECKS_RETENTION_DAYS`, 30) | volume deletion |
 | Caddy certificates and local CA | `/opt/uptime/caddy/data` | < 1 MB | directory deletion (re-issued automatically) |
@@ -48,7 +48,7 @@ ssh -L 15432:<postgres container IP>:5432 deploy@<host>
 
 Secrets live in Ansible Vault (`group_vars/all/vault.yml`): encrypted in
 the repository for production (password outside it and in the
-`VAULT_PASSWORD` GitHub secret), generated and gitignored for the local VM
+`VAULT_PASSWORD` GitHub secret), generated and gitignored for the local server
 (`docs/adr/0006-local-secrets-and-tls.md`). On the host they end up only in
 `/opt/uptime/env/*.env` (0600, root).
 
@@ -74,5 +74,5 @@ the history.
 ```sh
 make local-verify   # host hardening + stack healthy + only 80/443 published
 make local-smoke    # HTTPS end to end: register, monitor, the worker checks it
-make local-scan     # port scan from the workstation
+make local-scan     # port scan from another container on the server's network
 ```

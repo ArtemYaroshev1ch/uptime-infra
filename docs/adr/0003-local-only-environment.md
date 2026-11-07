@@ -1,6 +1,8 @@
 # 0003. Local-only environment; Terraform in validate-only mode
 
-- Status: accepted
+- Status: accepted; the "local Vagrant VM" part is superseded by
+  [0007](0007-local-environment-in-a-container.md) (the local server is a
+  systemd container)
 - Date: 2026-11-06
 
 ## Context

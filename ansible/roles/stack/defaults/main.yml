@@ -23,7 +23,7 @@ stack_api_colors:
 # --- Public endpoint -----------------------------------------------------------
 # The application answers on app.<domain> (`domain` comes from the
 # inventory). tls internal: Caddy's own CA instead of Let's Encrypt, for
-# hosts the internet cannot reach (the local VM).
+# hosts the internet cannot reach (the local server).
 stack_app_host: "app.{{ domain }}"
 stack_tls_internal: false
 # Let's Encrypt account e-mail (expiry warnings); used when tls is public.
@@ -42,7 +42,7 @@ stack_app_db_max_conns: 10
 stack_app_worker_concurrency: 20
 
 # --- Resource limits -------------------------------------------------------------
-# Sized for the 2 GB local VM with headroom for Phase 3 (monitoring).
+# Sized for a 2 GB host with headroom for Phase 3 (monitoring).
 stack_limits:
   postgres: {mem: 512m, cpus: "1.0"}
   migrate: {mem: 128m, cpus: "0.5"}

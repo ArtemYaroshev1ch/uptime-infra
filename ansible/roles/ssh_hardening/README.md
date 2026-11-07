@@ -40,4 +40,5 @@ Locks down the OpenSSH server without locking the operator out.
 ## Check
 
 `make local-verify` tries a password login and a root login against the
-VM and expects both to be refused; `sshd -T` shows the effective settings.
+local server over real ssh and expects both to be refused; `sshd -T` shows
+the effective settings.

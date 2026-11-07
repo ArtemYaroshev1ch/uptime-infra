@@ -9,9 +9,10 @@ a host with Terraform, configure it with Ansible, run the application and a
 Prometheus/Grafana/Loki stack in Docker Compose, alert on SLO burn rate,
 deploy blue/green with automatic rollback, and back up and verify restores.
 
-> **Status: work in progress.** Phase 1 (local VM and base host configuration). The project
-> runs on a local Vagrant VM; Terraform is kept in validate-only mode
-> ([ADR-0003](docs/adr/0003-local-only-environment.md)).
+> **Status: work in progress.** Phase 2 (the application stack). The project
+> runs on a local server in a systemd container
+> ([ADR-0007](docs/adr/0007-local-environment-in-a-container.md)); Terraform
+> is kept in validate-only mode ([ADR-0003](docs/adr/0003-local-only-environment.md)).
 
 ## Repository layout
 
@@ -25,7 +26,7 @@ deploy blue/green with automatic rollback, and back up and verify restores.
 | `runbooks/` | One runbook per alert |
 | `chaos/` | Chaos experiment rules, template and records |
 | `postmortems/` | Blameless postmortems |
-| `local/` | Vagrantfile of the local environment |
+| `local/` | Image of the local server (a systemd container) |
 | `toolbox/` | Pinned container image in which every check runs |
 | `docs/` | Architecture, operations, disaster recovery, ADRs |
 | [`SLO.md`](SLO.md) | Service level objectives and the error budget policy |
@@ -33,22 +34,22 @@ deploy blue/green with automatic rollback, and back up and verify restores.
 ## Quick start (local)
 
 ```sh
-make local-up       # create the Ubuntu 26.04 VM, bootstrap it, apply site.yml
+make local-up       # start the Ubuntu 26.04 server container, bootstrap it, apply site.yml
 make local-verify   # ssh hardening, ufw, the stack healthy, only 80/443 published
 make local-smoke    # HTTPS end to end: register, create a monitor, the worker checks it
-make local-scan     # port scan of the VM from the workstation
+make local-scan     # port scan of the server from another container
 ```
 
-The application is at <https://app.192.168.56.10.sslip.io> (certificate
-from Caddy's local CA: [`local/README.md`](local/README.md)). On the VM:
+The application is at <https://app.127.0.0.1.sslip.io> (certificate
+from Caddy's local CA: [`local/README.md`](local/README.md)). On the server:
 base hardening (`common`, `ssh_hardening`, `firewall`, `fail2ban`), Docker
 and the application stack (`stack`: PostgreSQL, migrations, API, worker,
 Caddy); see [`ansible/README.md`](ansible/README.md).
 
 ## Requirements
 
-- Docker (Docker Desktop on Windows/macOS), GNU Make, Git.
-- VirtualBox 7.x and Vagrant 2.4+ for the local environment.
+- Docker (Docker Desktop on Windows/macOS), GNU Make, Git. That is all:
+  the local server is a container too.
 
 Nothing else is installed on the host: Python, pre-commit, the linters,
 Ansible and Molecule (later Terraform) run inside the toolbox container
