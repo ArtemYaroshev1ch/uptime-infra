@@ -1,48 +1,53 @@
-# Variables of the local environment (Vagrant VM, docs/adr/0003).
+# Variables of the local environment: a systemd container standing in for a
+# server (docs/adr/0007-local-environment-in-a-container.md).
 
 env_name: local
 
 # --- Application -------------------------------------------------------------
-# Version of uptime-monitor on the VM (prod has its own app_version).
+# Version of uptime-monitor in the local environment (prod has its own).
 app_version: 1.0.0
 
-# sslip.io resolves app.192.168.56.10.sslip.io to 192.168.56.10: a real
-# host name for Caddy and the browser without editing the hosts file.
-domain: 192.168.56.10.sslip.io
-# Let's Encrypt cannot reach a host-only VM: Caddy's own CA instead
+# sslip.io resolves app.127.0.0.1.sslip.io to 127.0.0.1, where the local
+# server publishes Caddy's 80/443: a real host name for Caddy and the
+# browser without editing the hosts file.
+domain: 127.0.0.1.sslip.io
+# Let's Encrypt cannot reach a workstation: Caddy's own CA instead
 # (docs/adr/0006-local-secrets-and-tls.md).
 stack_tls_internal: true
 
 # --- Connection ------------------------------------------------------------
-# scripts/with-local-keys.sh copies the keys from local/.ssh and .vagrant
-# into this directory inside the toolbox container with mode 0600 (keys on
-# a Windows bind mount look world-readable and ssh refuses them).
+# scripts/with-local-keys.sh copies the keys from local/.ssh into this
+# directory inside the toolbox container with mode 0600 (keys on a Windows
+# bind mount look world-readable and ssh refuses them).
 local_key_dir: /root/.ssh/uptime-local
 
 ansible_user: deploy
 ansible_ssh_private_key_file: "{{ local_key_dir }}/deploy"
-# The VM gets new host keys every time it is recreated and the toolbox
+# The server gets new host keys every time it is recreated and the toolbox
 # container is thrown away after each run, so there is nothing to pin
 # against locally. Production pins host keys (KNOWN_HOSTS).
 ansible_ssh_common_args: -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR
 
-# bootstrap.yml logs in as the box's own user with the key Vagrant made.
-bootstrap_user: vagrant
-bootstrap_private_key_file: "{{ local_key_dir }}/vagrant"
+# bootstrap.yml logs in as root with the key scripts/local-server.sh
+# installed, like the first login to a cloud server.
+bootstrap_user: root
+bootstrap_private_key_file: "{{ local_key_dir }}/bootstrap"
 
 # --- deploy user -----------------------------------------------------------
 deploy_ssh_public_key: "{{ lookup('ansible.builtin.file', local_key_dir + '/deploy.pub') }}"
 
+# --- common ------------------------------------------------------------------
+# The container shares the kernel of Docker Desktop's VM: kernel settings
+# are written to /etc/sysctl.d but not applied (same as Molecule).
+common_sysctl_apply: false
+
 # --- ssh_hardening -----------------------------------------------------------
-# `vagrant ssh`, `vagrant halt` and `vagrant up` log in as vagrant.
 ssh_hardening_allowed_users:
   - deploy
-  - vagrant
 
 # --- fail2ban ----------------------------------------------------------------
-# The workstation, as the VM sees it: through Vagrant's port forward
-# (VirtualBox NAT gateway) and over the host-only network.
-# `make local-verify` fails logins on purpose and must not ban the operator.
+# The local Docker network: the toolbox (Ansible, the port scan) connects
+# from it, and `make local-verify` fails logins on purpose. Production has
+# no such exception.
 fail2ban_ignoreip:
-  - 10.0.2.2
-  - 192.168.56.1
+  - 172.30.56.0/24

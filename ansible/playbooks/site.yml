@@ -2,7 +2,7 @@
 # run reports changed=0 (checked by `make local-idempotence` and by Molecule
 # in CI). Later phases add the deploy and backup roles.
 #
-#   make local-site             # local VM
+#   make local-site             # local server
 #   make local-check            # the same with --check --diff
 - name: Configure the host
   hosts: all
